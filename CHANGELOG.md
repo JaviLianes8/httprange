@@ -8,4 +8,6 @@ All notable changes to this project are documented here. The format follows
 
 ## [0.1.0]
 
-- First release.
+- First release: `parse_range` for `Range` headers, `RangeSpec.resolve` and `resolve`
+  against a known length (suffix, open ended and unsatisfiable cases), and
+  `build_content_range` for `Content-Range` replies. Zero dependencies, fully typed.
