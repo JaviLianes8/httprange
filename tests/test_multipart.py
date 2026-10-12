@@ -127,3 +127,46 @@ def test_caps_the_number_of_parts() -> None:
     with pytest.raises(MalformedMultipart):
         parse_multipart_byteranges(body.body, body.content_type, max_parts=4)
     assert len(parse_multipart_byteranges(body.body, body.content_type, max_parts=5)) == 5
+
+
+@pytest.mark.parametrize(
+    "content_type",
+    [
+        "multipart/byteranges; boundary=\u20ac",
+        "multipart/byteranges; boundary=\u00e9t\u00e9",
+        'multipart/byteranges; boundary="ends with space "',
+        "multipart/byteranges; boundary=semi[colon",
+    ],
+)
+def test_rejects_received_boundaries_outside_rfc_2046(content_type: str) -> None:
+    with pytest.raises(MalformedMultipart):
+        parse_multipart_byteranges(b"--x\r\n\r\n--x--", content_type)
+
+
+def test_accepts_any_rfc_2046_boundary_character() -> None:
+    body = b"--a b:c?\r\nContent-Range: bytes 0-0/1\r\n\r\nz\r\n--a b:c?--\r\n"
+    parts = parse_multipart_byteranges(body, 'multipart/byteranges; boundary="a b:c?"')
+    assert parts[0].data == b"z"
+
+
+def test_encoder_refuses_parts_its_parser_would_reject() -> None:
+    unsatisfied = BytePart(ContentRange("bytes", None, None, 5), b"")
+    short = BytePart(ContentRange("bytes", 0, 9, 50), b"abc")
+    control = BytePart(ContentRange("bytes", 0, 0, 1), b"a", "text/plain\x01")
+    for part in (unsatisfied, short, control):
+        with pytest.raises(MalformedMultipart):
+            encode_multipart_byteranges([part])
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        b"--B\r\nContent-Range : bytes 0-1/5\r\n\r\nab\r\n--B--",
+        b"--B\r\nContent-Range: bytes 0-1/5\r\nContent-Range: bytes 0-1/5\r\n\r\nab\r\n--B--",
+        b"--B\r\nContent-Range: bytes 0-1/5\r\n\r\nab\r\n"
+        b"--B\r\nContent-Range: bytes 2-3/9\r\n\r\ncd\r\n--B--",
+    ],
+)
+def test_rejects_loose_part_headers(body: bytes) -> None:
+    with pytest.raises(MalformedMultipart):
+        parse_multipart_byteranges(body, "multipart/byteranges; boundary=B")

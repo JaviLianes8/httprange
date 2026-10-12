@@ -10,6 +10,7 @@ from ._byterange import ByteRange
 from ._content_range import ContentRange, parse_content_range
 from ._errors import MalformedMultipart, RangeError
 from ._media import boundary_from_content_type, check_boundary, check_field_value
+from ._numbers import is_token
 
 MEDIA_TYPE = "multipart/byteranges"
 
@@ -47,7 +48,9 @@ def build_multipart_byteranges(
     """Slice ``data`` by ``ranges`` and encode the parts as one 206 multipart body.
 
     ``content_type`` is the representation's media type, repeated in every part as
-    RFC 9110 15.3.7.2 recommends. Parts keep the order of ``ranges``.
+    RFC 9110 15.3.7.2 recommends. Parts keep the order of ``ranges``. Only answer
+    with multipart when several ranges were requested: a server MUST NOT send it for a
+    single-range request (15.3.7.2).
     """
     total = len(data)
     parts = []
@@ -78,6 +81,7 @@ def encode_multipart_byteranges(
     marker = b"--" + boundary.encode("ascii")
     chunks: list[bytes] = []
     for part in items:
+        _check_part(part)
         if marker in part.data:
             raise MalformedMultipart("the boundary occurs inside a part")
         chunks.append(marker + b"\r\n")
@@ -99,7 +103,9 @@ def parse_multipart_byteranges(
     ``content_type`` is the response's ``Content-Type`` value, which carries the
     boundary (quoted or not). A preamble or extra CRLFs before the first boundary are
     skipped (RFC 9110 14.6 note 1). Every part needs a satisfied ``Content-Range``; for
-    ``bytes`` its length must equal the part size. Raises :class:`MalformedMultipart`.
+    ``bytes`` its length must equal the part size, and all parts must agree on the
+    complete length. Positions must be integers, as the RFC 9110 14.4 grammar requires.
+    Raises :class:`MalformedMultipart`.
     """
     boundary = boundary_from_content_type(content_type, MEDIA_TYPE)
     pieces = (b"\r\n" + body).split(b"\r\n--" + boundary.encode("latin-1"))
@@ -108,6 +114,8 @@ def parse_multipart_byteranges(
         if piece.startswith(b"--"):
             if not parts:
                 raise MalformedMultipart("the body holds no parts")
+            if len({part.content_range.complete_length for part in parts}) > 1:
+                raise MalformedMultipart("parts disagree on the complete length")
             return tuple(parts)
         if len(parts) >= max_parts:
             raise MalformedMultipart(f"more than {max_parts} parts")
@@ -128,9 +136,11 @@ def _parse_part(piece: bytes) -> BytePart:
     fields: dict[str, str] = {}
     for line in head.decode("latin-1").split("\r\n") if head else []:
         name, colon, value = line.partition(":")
-        if not colon or not name.strip():
+        if not colon or not is_token(name):
             raise MalformedMultipart(f"invalid part header line {line[:80]!r}")
-        fields[name.strip().lower()] = value.strip(" \t")
+        if name.lower() == "content-range" and "content-range" in fields:
+            raise MalformedMultipart("a part has more than one Content-Range")
+        fields[name.lower()] = value.strip(" \t")
     if "content-range" not in fields:
         raise MalformedMultipart("a part has no Content-Range")
     try:
@@ -142,3 +152,11 @@ def _parse_part(piece: bytes) -> BytePart:
     if span.unit == "bytes" and span.length != len(data):
         raise MalformedMultipart(f"part holds {len(data)} bytes, Content-Range says {span}")
     return BytePart(span, data, fields.get("content-type"))
+
+
+def _check_part(part: BytePart) -> None:
+    span = part.content_range
+    if not span.is_satisfied:
+        raise MalformedMultipart("a part needs a satisfied Content-Range")
+    if span.unit == "bytes" and span.length != len(part.data):
+        raise MalformedMultipart(f"part holds {len(part.data)} bytes, Content-Range says {span}")

@@ -8,6 +8,8 @@ from ._numbers import OWS, is_token
 # RFC 2046 bchars restricted to token characters, so the boundary never needs quoting:
 # RFC 9110 14.6 notes that some implementations mishandle quoted boundaries.
 _SAFE = frozenset("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'+_-.")
+# Every bchar RFC 2046 5.1.1 allows; a received boundary may use any of them.
+_BCHARS = _SAFE | frozenset("(),/:=? ")
 
 
 def check_boundary(boundary: str) -> None:
@@ -20,8 +22,14 @@ def check_boundary(boundary: str) -> None:
 
 def check_field_value(value: str) -> None:
     """Reject a header field value that would break the part header block."""
-    if any(char in "\r\n\0" or ord(char) > 0xFF for char in value):
+    # RFC 9110 5.5: no control characters other than HTAB, nothing past Latin-1.
+    if any(_forbidden(char) for char in value):
         raise MalformedMultipart(f"invalid header field value {value[:80]!r}")
+
+
+def _forbidden(char: str) -> bool:
+    code = ord(char)
+    return (code < 0x20 and char != "\t") or code == 0x7F or code > 0xFF
 
 
 def boundary_from_content_type(content_type: str, media_type: str) -> str:
@@ -31,8 +39,9 @@ def boundary_from_content_type(content_type: str, media_type: str) -> str:
         raise MalformedMultipart(f"expected {media_type}, got {content_type[:80]!r}")
     for name, value in _parameters(params):
         if name == "boundary":
-            if not 1 <= len(value) <= 70:
-                raise MalformedMultipart("the boundary must have 1 to 70 characters")
+            valid = 1 <= len(value) <= 70 and not value.endswith(" ")
+            if not valid or not all(char in _BCHARS for char in value):
+                raise MalformedMultipart(f"invalid multipart boundary {value[:80]!r}")
             return value
     raise MalformedMultipart("the Content-Type has no boundary parameter")
 
