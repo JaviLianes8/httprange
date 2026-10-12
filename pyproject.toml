@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "httprange"
-version = "0.1.0"
+version = "0.2.0"
 description = "Parse and build HTTP Range and Content-Range headers (RFC 9110), zero dependencies, fully typed"
 readme = "README.md"
 requires-python = ">=3.10"
