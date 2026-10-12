@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ._errors import RangeError
+from ._numbers import check_int
 
 
 @dataclass(frozen=True, slots=True)
@@ -20,6 +21,8 @@ class ByteRange:
     last: int
 
     def __post_init__(self) -> None:
+        check_int(self.first, RangeError, "first")
+        check_int(self.last, RangeError, "last")
         if self.first < 0:
             raise RangeError(f"first byte {self.first} is negative")
         if self.last < self.first:

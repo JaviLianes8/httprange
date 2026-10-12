@@ -127,3 +127,20 @@ def test_unsatisfiable_errors_carry_the_length() -> None:
 def test_negative_total_is_a_range_error() -> None:
     with pytest.raises(RangeError):
         RangeSpec(0, 1).resolve(-1)
+
+
+@pytest.mark.parametrize(("start", "end"), [(True, 5), (0.0, 5), (0, "5")])
+def test_spec_rejects_non_integer_positions(start: object, end: object) -> None:
+    with pytest.raises(MalformedRange):
+        RangeSpec(start, end)  # type: ignore[arg-type]
+
+
+def test_errors_survive_pickling() -> None:
+    import pickle
+
+    from httprange import UnsupportedRangeUnit
+
+    unsatisfiable = pickle.loads(pickle.dumps(UnsatisfiableRange("none fit", 7)))
+    assert (str(unsatisfiable), unsatisfiable.length) == ("none fit", 7)
+    unsupported = pickle.loads(pickle.dumps(UnsupportedRangeUnit("no", "items")))
+    assert (str(unsupported), unsupported.unit) == ("no", "items")

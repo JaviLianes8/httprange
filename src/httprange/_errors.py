@@ -19,8 +19,11 @@ class UnsatisfiableRange(RangeError):
     """
 
     def __init__(self, message: str, length: int | None = None) -> None:
-        super().__init__(message)
+        super().__init__(message, length)
         self.length = length
+
+    def __str__(self) -> str:
+        return str(self.args[0])
 
 
 class UnsupportedRangeUnit(RangeError):
@@ -30,9 +33,12 @@ class UnsupportedRangeUnit(RangeError):
     lower-cased unit name.
     """
 
-    def __init__(self, message: str, unit: str) -> None:
-        super().__init__(message)
+    def __init__(self, message: str, unit: str = "") -> None:
+        super().__init__(message, unit)
         self.unit = unit
+
+    def __str__(self) -> str:
+        return str(self.args[0])
 
 
 class ExcessiveRanges(RangeError):

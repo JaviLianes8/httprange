@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ._errors import MalformedContentRange, RangeError
-from ._numbers import OWS, is_token, to_int
+from ._numbers import OWS, check_int, is_token, to_int
 
 UNIT = "bytes"
 
@@ -20,8 +20,10 @@ def build_content_range(
     a 416 response, and ``total`` as ``None`` when the length is unknown
     (``'bytes 0-499/*'``). ``unit`` must be a token.
     """
-    if not is_token(unit):
+    if not isinstance(unit, str) or not is_token(unit):
         raise RangeError(f"range unit {unit!r} is not a token")
+    for name, value in (("start", start), ("end", end), ("total", total)):
+        check_int(value, RangeError, name)
     if total is not None and total < 0:
         raise RangeError(f"total {total} is negative")
     size = "*" if total is None else str(total)
@@ -44,8 +46,9 @@ class ContentRange:
 
     A satisfied range (206) has ``first`` and ``last`` set and ``complete_length``
     either set or ``None`` for ``*``. The unsatisfied form (416, ``bytes */1234``) has
-    ``first`` and ``last`` as ``None`` and a ``complete_length``. ``unit`` is
-    lower-cased. Construction enforces the RFC 9110 14.4 validity rules.
+    ``first`` and ``last`` as ``None`` and a ``complete_length``.
+    :func:`parse_content_range` lower-cases ``unit``. Construction enforces the RFC
+    9110 14.4 validity rules.
     """
 
     unit: str

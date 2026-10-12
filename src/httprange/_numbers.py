@@ -28,3 +28,9 @@ def to_int(text: str, error: type[Exception], context: str) -> int:
     if len(significant) > MAX_DIGITS:
         raise error(f"number with more than {MAX_DIGITS} digits in range value")
     return int(significant or "0")
+
+
+def check_int(value: object, error: type[Exception], name: str) -> None:
+    """Raise ``error`` unless ``value`` is an int (a bool does not count)."""
+    if value is not None and (not isinstance(value, int) or isinstance(value, bool)):
+        raise error(f"{name} must be an int, got {type(value).__name__}")

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from ._byterange import ByteRange
 from ._errors import MalformedRange, RangeError, UnsatisfiableRange
-from ._numbers import to_int
+from ._numbers import check_int, to_int
 
 UNIT = "bytes"
 
@@ -25,6 +25,8 @@ class RangeSpec:
     end: int | None
 
     def __post_init__(self) -> None:
+        check_int(self.start, MalformedRange, "start")
+        check_int(self.end, MalformedRange, "end")
         if self.start is None and self.end is None:
             raise MalformedRange("a range spec needs a start, an end, or both")
         if (self.start is not None and self.start < 0) or (self.end is not None and self.end < 0):
@@ -42,7 +44,9 @@ class RangeSpec:
 
         An end past the body is clamped to the last byte, and a suffix longer than the
         body selects all of it (RFC 9110 14.1.2). Raises :class:`UnsatisfiableRange`
-        when the range falls outside the body, including any range on an empty body.
+        when the range falls outside the body. An empty body has no byte positions, so
+        every spec raises here; RFC 9110 14.1.2 still calls a non-zero suffix-range
+        satisfiable on it, which :func:`resolve_ranges` reports as ``()``.
         """
         if total < 0:
             raise RangeError("total must not be negative")
