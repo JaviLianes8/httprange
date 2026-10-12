@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from ._byterange import ByteRange
+from ._conditional import format_http_date, if_range_matches, parse_http_date
 from ._content_range import ContentRange, build_content_range, parse_content_range
 from ._errors import (
     ExcessiveRanges,
     MalformedContentRange,
+    MalformedDate,
     MalformedMultipart,
     MalformedRange,
     RangeError,
@@ -32,6 +34,7 @@ __all__ = [
     "ContentRange",
     "ExcessiveRanges",
     "MalformedContentRange",
+    "MalformedDate",
     "MalformedMultipart",
     "MalformedRange",
     "MultipartBody",
@@ -44,8 +47,11 @@ __all__ = [
     "build_content_range",
     "build_multipart_byteranges",
     "encode_multipart_byteranges",
+    "format_http_date",
+    "if_range_matches",
     "parse_accept_ranges",
     "parse_content_range",
+    "parse_http_date",
     "parse_multipart_byteranges",
     "parse_range",
     "parse_range_request",
