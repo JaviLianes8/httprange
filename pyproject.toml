@@ -4,14 +4,14 @@ build-backend = "hatchling.build"
 
 [project]
 name = "httprange"
-version = "0.1.0"
-description = "Parse and build HTTP Range and Content-Range headers (RFC 7233), zero dependencies, fully typed"
+version = "0.2.0"
+description = "Parse and build HTTP Range and Content-Range headers (RFC 9110), zero dependencies, fully typed"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Javier Lianes", email = "javier@lianes8studio.com" }]
-keywords = []
+keywords = ["http", "range", "content-range", "partial-content", "byteranges", "rfc9110"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -19,6 +19,9 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = []
+
+[project.scripts]
+httprange = "httprange._cli:main"
 
 [project.optional-dependencies]
 dev = ["ruff", "mypy", "pytest", "build", "twine"]

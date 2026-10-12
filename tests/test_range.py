@@ -1,6 +1,13 @@
 import pytest
 
-from httprange import MalformedRange, RangeSpec, UnsatisfiableRange, parse_range, resolve
+from httprange import (
+    MalformedRange,
+    RangeError,
+    RangeSpec,
+    UnsatisfiableRange,
+    parse_range,
+    resolve,
+)
 
 
 def test_parses_a_single_range() -> None:
@@ -83,3 +90,57 @@ def test_resolve_header_drops_unsatisfiable_specs() -> None:
 def test_resolve_header_raises_when_nothing_is_satisfiable() -> None:
     with pytest.raises(UnsatisfiableRange):
         resolve("bytes=5000-6000", 1234)
+
+
+def test_lenient_parser_accepts_any_unit_case() -> None:
+    assert parse_range("Bytes=0-9") == [RangeSpec(0, 9)]
+
+
+@pytest.mark.parametrize("value", ["bytes=\u00b2-3", "bytes=0-\u0663", "bytes=" + "9" * 5000 + "-"])
+def test_lenient_parser_raises_malformed_for_odd_numerals(value: str) -> None:
+    with pytest.raises(MalformedRange):
+        parse_range(value)
+
+
+@pytest.mark.parametrize(("start", "end"), [(None, None), (-1, 5), (0, -1), (9, 3)])
+def test_spec_rejects_shapes_the_grammar_cannot_express(start: int | None, end: int | None) -> None:
+    with pytest.raises(MalformedRange):
+        RangeSpec(start, end)
+
+
+def test_spec_renders_and_resolves_to_a_byte_range() -> None:
+    assert [str(RangeSpec(0, 499)), str(RangeSpec(9500, None)), str(RangeSpec(None, 500))] == [
+        "0-499",
+        "9500-",
+        "-500",
+    ]
+    item = RangeSpec(None, 500).byte_range(10000)
+    assert (item.first, item.last, item.length) == (9500, 9999, 500)
+
+
+def test_unsatisfiable_errors_carry_the_length() -> None:
+    with pytest.raises(UnsatisfiableRange) as info:
+        resolve("bytes=5000-6000", 1234)
+    assert info.value.length == 1234
+
+
+def test_negative_total_is_a_range_error() -> None:
+    with pytest.raises(RangeError):
+        RangeSpec(0, 1).resolve(-1)
+
+
+@pytest.mark.parametrize(("start", "end"), [(True, 5), (0.0, 5), (0, "5")])
+def test_spec_rejects_non_integer_positions(start: object, end: object) -> None:
+    with pytest.raises(MalformedRange):
+        RangeSpec(start, end)  # type: ignore[arg-type]
+
+
+def test_errors_survive_pickling() -> None:
+    import pickle
+
+    from httprange import UnsupportedRangeUnit
+
+    unsatisfiable = pickle.loads(pickle.dumps(UnsatisfiableRange("none fit", 7)))
+    assert (str(unsatisfiable), unsatisfiable.length) == ("none fit", 7)
+    unsupported = pickle.loads(pickle.dumps(UnsupportedRangeUnit("no", "items")))
+    assert (str(unsupported), unsupported.unit) == ("no", "items")
