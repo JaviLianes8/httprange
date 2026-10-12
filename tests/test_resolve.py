@@ -25,7 +25,7 @@ def test_byte_range_basics() -> None:
     assert item.overlaps(ByteRange(999, 1200)) and not item.overlaps(ByteRange(1000, 1001))
 
 
-@pytest.mark.parametrize(("first", "last"), [(-1, 3), (5, 4)])
+@pytest.mark.parametrize(("first", "last"), [(-1, 3), (5, 4), (True, 3), (0, 3.0)])
 def test_byte_range_rejects_invalid_bounds(first: int, last: int) -> None:
     with pytest.raises(RangeError):
         ByteRange(first, last)
@@ -86,9 +86,19 @@ def test_unsatisfiable_set_carries_the_length() -> None:
     assert info.value.length == 100
 
 
-def test_empty_representation_is_unsatisfiable() -> None:
-    with pytest.raises(UnsatisfiableRange):
-        resolve_ranges("bytes=-5", 0)
+def test_empty_representation_with_a_suffix_selects_nothing() -> None:
+    # RFC 9110 14.1.2: on a zero-length representation only a non-zero suffix-range is
+    # satisfiable, and it selects no bytes.
+    assert resolve_ranges("bytes=-5", 0) == ()
+    assert resolve_ranges("bytes=0-1,-5", 0) == ()
+    for header in ("bytes=0-1", "bytes=-0", "bytes=0-"):
+        with pytest.raises(UnsatisfiableRange):
+            resolve_ranges(header, 0)
+
+
+def test_huge_headers_are_refused_before_parsing() -> None:
+    with pytest.raises(ExcessiveRanges):
+        resolve_ranges("bytes=" + "0-0," * 200_000, 10)
 
 
 def test_too_many_ranges_are_excessive() -> None:
@@ -106,6 +116,12 @@ def test_more_than_two_overlapping_ranges_are_excessive() -> None:
     assert resolve_ranges("bytes=0-5,3-9", 10) == (ByteRange(0, 9),)
     policy = RangePolicy(max_overlapping=3)
     assert resolve_ranges("bytes=0-0,0-0,0-0", 10, policy=policy) == (ByteRange(0, 0),)
+
+
+def test_overlap_is_measured_at_a_single_byte() -> None:
+    # Two separate overlapping pairs and a chain never stack three ranges on one byte.
+    assert resolve_ranges("bytes=0-1,1-2,10-11,11-12", 20) == (ByteRange(0, 2), ByteRange(10, 12))
+    assert resolve_ranges("bytes=0-5,3-8,6-10", 20) == (ByteRange(0, 10),)
 
 
 def test_adjacent_ranges_do_not_count_as_overlapping() -> None:

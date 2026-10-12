@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 from ._byterange import ByteRange
 from ._errors import ExcessiveRanges, RangeError, UnsatisfiableRange, UnsupportedRangeUnit
-from ._grammar import parse_range_request
+from ._grammar import MAX_EMPTY_ELEMENTS, parse_range_request
 from ._spec import RangeSpec
 
 
@@ -16,8 +16,8 @@ class RangePolicy:
     """Limits and merging rules applied by :func:`resolve_ranges`.
 
     - ``max_ranges``: most range-specs accepted in one header.
-    - ``max_overlapping``: most ranges allowed to overlap another one; RFC 9110 14.2
-      lets a server refuse "more than two overlapping ranges", hence the default 2.
+    - ``max_overlapping``: most ranges allowed to cover the same byte at once; RFC 9110
+      14.2 lets a server refuse "more than two overlapping ranges", hence the default 2.
     - ``coalesce``: merge ranges that overlap or touch (RFC 9110 15.3.7.2).
     - ``coalesce_gap``: also merge ranges separated by at most this many bytes; the RFC
       notes the overhead per multipart part is around 80 bytes.
@@ -44,17 +44,25 @@ def resolve_ranges(
     """Resolve a ``Range`` header (or its specs) against a representation ``length``.
 
     Unsatisfiable specs are dropped; when none is left :class:`UnsatisfiableRange` is
-    raised with ``length`` attached, the case for a 416 response. Too many specs or too
-    many overlapping ranges raise :class:`ExcessiveRanges`. With coalescing on, the
+    raised with ``length`` attached, the case for a 416 response. An empty
+    representation (``length == 0``) with a non-zero suffix-range is satisfiable per
+    RFC 9110 14.1.2 but has no bytes to select, so the result is ``()``: send the whole
+    (empty) representation. Too many specs or too many overlapping ranges raise
+    :class:`ExcessiveRanges`. With coalescing on, the
     result is merged and listed in the order the specs were requested, as RFC 9110
     15.3.7.2 asks for multipart responses. A header with another unit raises
     :class:`UnsupportedRangeUnit`; an invalid one raises :class:`MalformedRange`.
     """
     if length < 0:
         raise RangeError("length must not be negative")
+    # Count list elements before parsing, so a huge header is refused cheaply.
+    if isinstance(ranges, str) and ranges.count(",") >= policy.max_ranges + MAX_EMPTY_ELEMENTS:
+        raise ExcessiveRanges(f"more than {policy.max_ranges} ranges requested")
     specs = _specs(ranges)
     if len(specs) > policy.max_ranges:
         raise ExcessiveRanges(f"{len(specs)} ranges requested, at most {policy.max_ranges}")
+    if length == 0 and any(spec.is_suffix and spec.end for spec in specs):
+        return ()
     resolved: list[ByteRange] = []
     for spec in specs:
         try:
@@ -63,9 +71,11 @@ def resolve_ranges(
             continue
     if not resolved:
         raise UnsatisfiableRange(f"no satisfiable range for length {length}", length)
-    overlapping = _count_overlapping(resolved)
+    overlapping = _overlap_depth(resolved)
     if overlapping > policy.max_overlapping:
-        raise ExcessiveRanges(f"{overlapping} overlapping ranges, at most {policy.max_overlapping}")
+        raise ExcessiveRanges(
+            f"{overlapping} ranges overlap at one byte, at most {policy.max_overlapping}"
+        )
     if not policy.coalesce:
         return tuple(resolved)
     return _coalesce(resolved, policy.coalesce_gap)
@@ -80,20 +90,14 @@ def _specs(ranges: str | Iterable[RangeSpec]) -> list[RangeSpec]:
     return list(request.specs)
 
 
-def _count_overlapping(ranges: list[ByteRange]) -> int:
-    """Count the ranges that share a byte with at least one other range."""
-    order = sorted(range(len(ranges)), key=lambda i: ranges[i].first)
-    marked: set[int] = set()
-    reach = -1
-    holder = -1
-    for index in order:
-        current = ranges[index]
-        # Anything overlapping an earlier range overlaps the one reaching furthest.
-        if current.first <= reach:
-            marked.update((index, holder))
-        if current.last > reach:
-            reach, holder = current.last, index
-    return len(marked)
+def _overlap_depth(ranges: list[ByteRange]) -> int:
+    """The largest number of ranges that cover one same byte."""
+    events = sorted([(item.first, 1) for item in ranges] + [(item.last + 1, -1) for item in ranges])
+    depth = deepest = 0
+    for _, step in events:
+        depth += step
+        deepest = max(deepest, depth)
+    return deepest
 
 
 def _coalesce(ranges: list[ByteRange], gap: int) -> tuple[ByteRange, ...]:
