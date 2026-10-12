@@ -40,6 +40,8 @@ All notable changes to this project are documented here. The format follows
 - `RangeSpec` rejects shapes the grammar cannot express (no positions, negative
   positions, last before first).
 - A negative `total` raises `RangeError` (still a `ValueError`).
+- `RangeSpec`, `ByteRange` and `build_content_range` reject non-integer positions,
+  including booleans.
 
 ### Changed
 

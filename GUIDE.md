@@ -44,8 +44,8 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 ```
 
-The test suite runs exactly this handler on a loopback socket and fetches it with
-`urllib` and `curl`.
+The test suite runs this handler (plus an `ETag` header) on a loopback socket and
+fetches it with `urllib` and `curl`.
 
 ### What `evaluate_range_request` decides
 
@@ -72,7 +72,7 @@ from httprange import RangePolicy, resolve_ranges
 
 policy = RangePolicy(
     max_ranges=100,  # range-specs accepted per header
-    max_overlapping=2,  # 14.2: "more than two overlapping ranges" may be refused
+    max_overlapping=2,  # 14.2: at most two ranges may cover one same byte
     coalesce=True,  # merge overlapping and adjacent ranges
     coalesce_gap=80,  # 15.3.7.2: per-part overhead is "around 80 bytes"
 )
@@ -91,7 +91,7 @@ Coalesced ranges keep the order of their earliest spec, so parts follow request 
   `bytes= 0-999, 4500-5499, -1000` (the RFC's own example) are valid;
 - `bytes =0-1`, `bytes=0 - 1`, `bytes=500-100`, non-ASCII digits and numerals of more
   than 4000 digits raise `MalformedRange`;
-- `items=1.2-4.3` parses to `RangeRequest(unit='items', other=('1.2-4.3',))`.
+- `items=1.2-4.3` parses to `RangeRequest(unit='items', specs=(), other=('1.2-4.3',))`.
 
 `parse_range`, from 0.1, stays lenient about spaces around `=` and only accepts `bytes`.
 
@@ -125,8 +125,9 @@ if_range_matches(
 )  # True, exact match
 ```
 
-A date only counts when it is a strong validator (8.8.2.2). If the representation can
-change twice within one second, pass `date_is_strong=False` and only ETags will match.
+A date only counts when it is a strong validator (8.8.2.2). The default
+`date_is_strong=True` trusts your dates; if the representation can change twice within
+one second, pass `date_is_strong=False` and only ETags will match.
 
 ## 6. Command line
 

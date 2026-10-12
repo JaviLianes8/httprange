@@ -28,7 +28,7 @@ decision = evaluate_range_request(
     etag='"v1"',  # current validators of the representation
 )
 decision.status  # 200, 206 or 416
-decision.content_range  # 'bytes 9500-9999/10000', 'bytes */10000' or None
+decision.content_range  # None here (multipart); 'bytes 0-0/10000' or 'bytes */10000' otherwise
 if decision.is_multipart:
     body = build_multipart_byteranges(data, decision.ranges, content_type="video/mp4")
     body.content_type  # 'multipart/byteranges; boundary=...'
@@ -69,8 +69,9 @@ if_range_matches('"v1"', etag='"v1"')  # True
 if_range_matches('W/"v1"', etag='W/"v1"')  # False: weak tags never match
 ```
 
-The 0.1 API (`parse_range`, `resolve`, `RangeSpec.resolve`, `build_content_range`) is
-unchanged and still works.
+The 0.1 API (`parse_range`, `resolve`, `RangeSpec.resolve`, `build_content_range`) keeps
+its signatures and results for valid input; validation is stricter, as listed under
+"Fixed" in the [CHANGELOG](CHANGELOG.md).
 
 ## What the RFC says, and what this library does
 
@@ -78,12 +79,12 @@ unchanged and still works.
 |---|---|
 | 14.1 | Range units are case-insensitive tokens: `Bytes=0-1` is valid. |
 | 14.1.1 | `int-range`, `suffix-range` and `other-range`; `500-100` is invalid. Other units keep their specs as raw text. |
-| 14.1.2 | Inclusive offsets from zero; a last position past the end is clamped; a suffix longer than the body selects all of it; a suffix of 0 is unsatisfiable. Large numerals parse exactly, absurd ones raise a typed error. |
+| 14.1.2 | Inclusive offsets from zero; a last position past the end is clamped; a suffix longer than the body selects all of it; a suffix of 0 is unsatisfiable. On an empty representation a non-zero suffix is satisfiable but selects nothing: `resolve_ranges` returns `()` and the decision is 200. Large numerals parse exactly, absurd ones raise a typed error. |
 | 5.6.1.2 | Whitespace around commas and a bounded number of empty list elements are accepted. |
-| 14.2 | `Range` is ignored for methods other than `GET` and for units other than `bytes`; an invalid header is ignored; more than `max_overlapping` (default 2) overlapping ranges or more than `max_ranges` (default 100) ranges raise `ExcessiveRanges`. |
+| 14.2 | `Range` is ignored for methods other than `GET` and for units other than `bytes`; an invalid header is ignored; more than `max_overlapping` (default 2) ranges covering one same byte or more than `max_ranges` (default 100) ranges raise `ExcessiveRanges`. |
 | 14.3 | `parse_accept_ranges` reads `Accept-Ranges`, including `none`. |
 | 14.4 | `Content-Range` for 206 (`bytes 0-499/1234`, `bytes 0-499/*`) and 416 (`bytes */1234`), with the validity rules enforced. |
-| 14.6, 15.3.7.2 | `multipart/byteranges` builder and parser; parts keep request order after coalescing; the boundary is never quoted and never occurs in a part. |
+| 14.6, 15.3.7.2 | `multipart/byteranges` builder and parser; parts keep request order after coalescing; the boundary is never quoted and never occurs in a part. Part positions must be integers, as the 14.4 grammar requires. |
 | 13.1.5, 8.8.3.2 | `If-Range` with strong ETag comparison or an exact HTTP-date match. |
 | 5.6.7 | IMF-fixdate, RFC 850 and asctime dates are all accepted. |
 | 15.5.17 | A 416 decision carries `Content-Range: bytes */<length>`. |
