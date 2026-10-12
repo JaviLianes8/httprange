@@ -79,6 +79,8 @@ def evaluate_range_request(
     """
     if length < 0:
         raise RangeError("length must not be negative")
+    if on_excessive not in ("reject", "ignore"):
+        raise RangeError(f"on_excessive must be 'reject' or 'ignore', not {on_excessive!r}")
     if range_header is None:
         return RangeDecision(200, (), length, "no Range header")
     if method != "GET":

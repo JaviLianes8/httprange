@@ -1,8 +1,9 @@
 import json
+import shlex
 
 import pytest
 
-from httprange._cli import main
+from httprange._cli import EXAMPLES, main
 
 
 def run(capsys: pytest.CaptureFixture[str], *args: str) -> tuple[int, str, str]:
@@ -109,8 +110,25 @@ def test_decide(capsys: pytest.CaptureFixture[str]) -> None:
     assert "content-range: bytes */100" in out
 
 
-def test_help_has_runnable_examples(capsys: pytest.CaptureFixture[str]) -> None:
+def test_help_lists_the_examples(capsys: pytest.CaptureFixture[str]) -> None:
     with pytest.raises(SystemExit) as info:
         main(["--help"])
     assert info.value.code == 0
-    assert "examples:" in capsys.readouterr().out
+    assert EXAMPLES in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("line", EXAMPLES.splitlines()[1:])
+def test_every_help_example_runs(capsys: pytest.CaptureFixture[str], line: str) -> None:
+    words = shlex.split(line, comments=True)
+    assert words[0] == "httprange"
+    code, out, err = run(capsys, *words[1:])
+    expected = 1 if "error" in line.split("#", 1)[-1] else 0
+    assert (code, bool(out), bool(err)) == (expected, expected == 0, expected == 1)
+    comment = line.split("#", 1)[1].strip() if "#" in line else ""
+    if comment and expected == 0 and not comment.startswith("one "):
+        assert comment in out
+
+
+def test_non_ascii_input_never_crashes(capsys: pytest.CaptureFixture[str]) -> None:
+    code, out, _ = run(capsys, "decide", "--range", "bytes=あ-1", "--length", "10")
+    assert (code, out.splitlines()[0]) == (0, "status: 200")

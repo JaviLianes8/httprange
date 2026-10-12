@@ -8,6 +8,7 @@ The assertions cover the actual stdout, stderr and exit codes.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import venv
@@ -127,3 +128,11 @@ def test_installed_library_imports_in_the_venv(cli: Path) -> None:
         httprange.__version__,
         "(ByteRange(first=9500, last=9999),)\n",
     ]
+
+
+def test_non_ascii_input_survives_a_narrow_console_encoding(cli: Path) -> None:
+    env = {**os.environ, "PYTHONIOENCODING": "cp1252"}
+    command = [str(cli), "decide", "--range", "bytes=\u3042-1", "--length", "10"]
+    result = subprocess.run(command, capture_output=True, text=True, timeout=60, env=env)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines()[0] == "status: 200"

@@ -80,3 +80,8 @@ def test_if_range_without_range_is_ignored() -> None:
 def test_rejects_a_negative_length() -> None:
     with pytest.raises(RangeError):
         decide("bytes=0-1", length=-1)
+
+
+def test_rejects_an_unknown_on_excessive_value() -> None:
+    with pytest.raises(RangeError):
+        decide("bytes=0-1", on_excessive="ignor")

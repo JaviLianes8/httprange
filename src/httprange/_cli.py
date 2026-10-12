@@ -147,6 +147,10 @@ def _decide(args: argparse.Namespace) -> None:
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the command line tool and return its exit status."""
+    for stream in (sys.stdout, sys.stderr):
+        # Echoed input may hold characters the console encoding cannot print.
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="backslashreplace")
     args = build_parser().parse_args(argv)
     try:
         _run(args)
