@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from ._byterange import ByteRange
-from ._content_range import build_content_range
+from ._content_range import ContentRange, build_content_range, parse_content_range
 from ._errors import (
     ExcessiveRanges,
+    MalformedContentRange,
     MalformedRange,
     RangeError,
     UnsatisfiableRange,
@@ -19,7 +20,9 @@ __version__ = "0.1.0"
 
 __all__ = [
     "ByteRange",
+    "ContentRange",
     "ExcessiveRanges",
+    "MalformedContentRange",
     "MalformedRange",
     "RangeError",
     "RangePolicy",
@@ -29,6 +32,7 @@ __all__ = [
     "UnsupportedRangeUnit",
     "build_content_range",
     "parse_accept_ranges",
+    "parse_content_range",
     "parse_range",
     "parse_range_request",
     "resolve",
