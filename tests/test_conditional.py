@@ -91,3 +91,18 @@ def test_weak_dates_and_malformed_dates_never_match() -> None:
     assert not if_range_matches(header, last_modified=INSTANT, date_is_strong=False)
     assert not if_range_matches("yesterday", last_modified=INSTANT)
     assert not if_range_matches(header, last_modified="not a date")
+
+
+def test_seconds_past_sixty_are_rejected() -> None:
+    with pytest.raises(MalformedDate):
+        parse_http_date("Sun, 06 Nov 1994 08:49:61 GMT")
+
+
+def test_fifty_year_rule_compares_full_dates() -> None:
+    new_year = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    assert parse_http_date("Thursday, 31-Dec-76 00:00:00 GMT", now=new_year).year == 1976
+    assert parse_http_date("Thursday, 01-Jan-76 00:00:00 GMT", now=new_year).year == 2076
+    leap = datetime(2028, 2, 29, tzinfo=timezone.utc)
+    assert parse_http_date("Monday, 28-Feb-78 00:00:00 GMT", now=leap).year == 2078
+    with pytest.raises(RangeError):
+        parse_http_date("Sun, 06 Nov 1994 08:49:37 GMT", now=datetime(2026, 1, 1))
