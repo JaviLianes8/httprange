@@ -34,7 +34,7 @@ def test_resolve_prints_content_ranges(capsys: pytest.CaptureFixture[str]) -> No
 def test_resolve_enforces_max_ranges(capsys: pytest.CaptureFixture[str]) -> None:
     code, out, err = run(capsys, "resolve", "bytes=0-1,4-5", "--length", "9", "--max-ranges", "1")
     assert (code, out) == (1, "")
-    assert "at most 1" in err
+    assert "more than 1 ranges" in err
 
 
 def test_content_range_forms(capsys: pytest.CaptureFixture[str]) -> None:

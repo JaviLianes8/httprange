@@ -149,13 +149,16 @@ def test_accepts_any_rfc_2046_boundary_character() -> None:
     assert parts[0].data == b"z"
 
 
-def test_encoder_refuses_parts_its_parser_would_reject() -> None:
-    unsatisfied = BytePart(ContentRange("bytes", None, None, 5), b"")
-    short = BytePart(ContentRange("bytes", 0, 9, 50), b"abc")
-    control = BytePart(ContentRange("bytes", 0, 0, 1), b"a", "text/plain\x01")
-    for part in (unsatisfied, short, control):
+def test_parts_its_parser_would_reject_cannot_be_built() -> None:
+    cases = [
+        (ContentRange("bytes", None, None, 5), b"", None),
+        (ContentRange("bytes", 0, 9, 50), b"abc", None),
+        (ContentRange("bytes", 0, 0, 1), b"a", "text/plain\x01"),
+        (ContentRange("bytes", 0, 0, 1), b"a", " text/plain"),
+    ]
+    for span, data, content_type in cases:
         with pytest.raises(MalformedMultipart):
-            encode_multipart_byteranges([part])
+            BytePart(span, data, content_type)
 
 
 @pytest.mark.parametrize(

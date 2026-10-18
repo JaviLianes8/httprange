@@ -1,9 +1,10 @@
-"""Boundary and field-value checks for multipart/byteranges."""
+"""Boundary, field-value and Content-Type checks for multipart/byteranges."""
 
 from __future__ import annotations
 
+from ._checks import short
 from ._errors import MalformedMultipart
-from ._numbers import OWS, is_token
+from ._numbers import OWS, TCHARS, is_token
 
 # RFC 2046 bchars restricted to token characters, so the boundary never needs quoting:
 # RFC 9110 14.6 notes that some implementations mishandle quoted boundaries.
@@ -21,10 +22,12 @@ def check_boundary(boundary: str) -> None:
 
 
 def check_field_value(value: str) -> None:
-    """Reject a header field value that would break the part header block."""
-    # RFC 9110 5.5: no control characters other than HTAB, nothing past Latin-1.
-    if any(_forbidden(char) for char in value):
-        raise MalformedMultipart(f"invalid header field value {value[:80]!r}")
+    """Reject a header field value that RFC 9110 5.5 does not allow.
+
+    Visible ASCII and obs-text, with spaces and tabs only between visible characters.
+    """
+    if value != value.strip(OWS) or any(_forbidden(char) for char in value):
+        raise MalformedMultipart(f"invalid header field value {short(value)}")
 
 
 def _forbidden(char: str) -> bool:
@@ -34,48 +37,65 @@ def _forbidden(char: str) -> bool:
 
 def boundary_from_content_type(content_type: str, media_type: str) -> str:
     """Return the ``boundary`` parameter of a ``Content-Type`` naming ``media_type``."""
-    kind, _, params = content_type.partition(";")
+    kind, _, _ = content_type.partition(";")
     if kind.strip(OWS).lower() != media_type:
-        raise MalformedMultipart(f"expected {media_type}, got {content_type[:80]!r}")
-    for name, value in _parameters(params):
-        if name == "boundary":
-            valid = 1 <= len(value) <= 70 and not value.endswith(" ")
-            if not valid or not all(char in _BCHARS for char in value):
-                raise MalformedMultipart(f"invalid multipart boundary {value[:80]!r}")
-            return value
-    raise MalformedMultipart("the Content-Type has no boundary parameter")
+        raise MalformedMultipart(f"expected {media_type}, got {short(content_type)}")
+    found = [value for name, value in _parameters(content_type, len(kind)) if name == "boundary"]
+    if not found:
+        raise MalformedMultipart("the Content-Type has no boundary parameter")
+    if len(found) > 1:
+        raise MalformedMultipart("the Content-Type has more than one boundary parameter")
+    value = found[0]
+    if not 1 <= len(value) <= 70 or value.endswith(" ") or not all(c in _BCHARS for c in value):
+        raise MalformedMultipart(f"invalid multipart boundary {short(value)}")
+    return value
 
 
-def _parameters(text: str) -> list[tuple[str, str]]:
+def _parameters(text: str, index: int) -> list[tuple[str, str]]:
+    """Read ``*( OWS ";" OWS [ parameter ] )`` (RFC 9110 5.6.6) from ``index`` on."""
     found: list[tuple[str, str]] = []
-    rest = text
-    while True:
-        rest = rest.lstrip(OWS + ";")
-        if not rest:
-            return found
-        name, eq, rest = rest.partition("=")
-        name = name.strip(OWS).lower()
-        if not eq or not is_token(name):
-            raise MalformedMultipart(f"invalid media type parameter {name[:80]!r}")
-        if rest.startswith('"'):
-            value, rest = _quoted(rest)
+    size = len(text)
+    while (index := _skip(text, index, OWS)) < size:
+        if text[index] != ";":
+            raise MalformedMultipart(f"expected ';' in Content-Type at {short(text[index:])}")
+        index = _skip(text, index + 1, OWS)
+        if index == size or text[index] == ";":
+            continue
+        equals = _skip(text, index, TCHARS)
+        name = text[index:equals]
+        if not name or not text.startswith("=", equals):
+            raise MalformedMultipart(f"invalid media type parameter {short(text[index:])}")
+        if text.startswith('"', equals + 1):
+            value, index = _quoted(text, equals + 1)
         else:
-            value, _, rest = rest.partition(";")
-            value = value.strip(OWS)
-        found.append((name, value))
+            index = _skip(text, equals + 1, TCHARS)
+            value = text[equals + 1 : index]
+            if not is_token(value):
+                raise MalformedMultipart(f"invalid value for parameter {short(name)}")
+        found.append((name.lower(), value))
+    return found
 
 
-def _quoted(text: str) -> tuple[str, str]:
+def _skip(text: str, index: int, chars: str | frozenset[str]) -> int:
+    while index < len(text) and text[index] in chars:
+        index += 1
+    return index
+
+
+def _quoted(text: str, start: int) -> tuple[str, int]:
+    """Read the quoted-string opening at ``start``; return its value and the next index."""
     out: list[str] = []
-    index = 1
+    index = start + 1
     while index < len(text):
         char = text[index]
-        if char == "\\" and index + 1 < len(text):
+        if char == "\\" and index + 1 < len(text) and not _forbidden(text[index + 1]):
             out.append(text[index + 1])
             index += 2
             continue
         if char == '"':
-            return "".join(out), text[index + 1 :]
+            return "".join(out), index + 1
+        if char == "\\" or _forbidden(char):
+            break
         out.append(char)
         index += 1
-    raise MalformedMultipart("unterminated quoted string in Content-Type")
+    raise MalformedMultipart("invalid quoted string in Content-Type")
