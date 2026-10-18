@@ -31,10 +31,7 @@ def test_the_email_package_reads_every_built_body() -> None:
             first = rng.randrange(size)
             ranges.append(hr.ByteRange(first, rng.randrange(first, size)))
         content_type = rng.choice(MEDIA)
-        try:
-            body = hr.build_multipart_byteranges(data, ranges, content_type=content_type)
-        except hr.MalformedMultipart:
-            continue  # the data holds the boundary; generated boundaries never collide
+        body = hr.build_multipart_byteranges(data, ranges, content_type=content_type)
         head = f"Content-Type: {body.content_type}\r\n\r\n".encode("ascii")
         # compat32 keeps the header text as received.
         message = email.message_from_bytes(head + body.body, policy=email.policy.compat32)
@@ -45,7 +42,7 @@ def test_the_email_package_reads_every_built_body() -> None:
             assert part["Content-Type"] == content_type
             assert part.get_payload(decode=True) == data[item.as_slice()]
         checked += 1
-    assert checked > 2900
+    assert checked == 3000
 
 
 def _instants(seed: int, low: int, high: int, count: int) -> list[datetime]:

@@ -2,15 +2,41 @@ from __future__ import annotations
 
 import hashlib
 import html
+import importlib.util
 import json
+import os
 import re
+import sys
 from collections.abc import Iterator
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 from range_server import CONTENT, serve
 
 UPSTREAM = Path(__file__).resolve().parent / "upstream"
+
+
+@pytest.fixture(scope="session")
+def old() -> ModuleType:
+    """The PyPI 0.2.0 release, loaded as ``httprange_v02`` from ``HTTPRANGE_V02``.
+
+    Point the variable at a folder holding the 0.2.0 package, for example the unpacked
+    wheel: ``pip download httprange==0.2.0 --no-deps`` and unzip it.
+    """
+    folder = os.environ.get("HTTPRANGE_V02")
+    if not folder:
+        pytest.skip("set HTTPRANGE_V02 to the unpacked 0.2.0 release")
+    init = Path(folder) / "httprange" / "__init__.py"
+    spec = importlib.util.spec_from_file_location(
+        "httprange_v02", init, submodule_search_locations=[str(init.parent)]
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["httprange_v02"] = module
+    spec.loader.exec_module(module)
+    assert module.__version__ == "0.2.0"
+    return module
 
 
 @pytest.fixture(scope="session")
