@@ -17,7 +17,7 @@ from collections.abc import Callable
 
 import abnf
 import pytest
-from conftest import upstream_prose, upstream_text
+from conftest import between, upstream_prose, upstream_text
 
 import httprange as hr
 
@@ -26,18 +26,10 @@ OWS = " \t"
 NOISE = [*OWS, *',-=/*";.:!#~W0123456789abyteBYTE', *map(chr, (0xE9, 0x663, 0, 0x7F, 0xFF))]
 
 
-def _between(text: str, start: str, end: str) -> str:
-    first = re.search("^" + re.escape(start), text, re.MULTILINE)
-    assert first is not None, start
-    last = re.search("^" + re.escape(end), text[first.end() :], re.MULTILINE)
-    assert last is not None, end
-    return text[first.end() : first.end() + last.start()]
-
-
 @functools.cache
 def _rules() -> dict[str, abnf.Node]:
-    core = _between(upstream_text("rfc5234.txt"), "B.1.  Core Rules", "B.2.  Common Encoding")
-    collected = _between(upstream_text("rfc9110.txt"), "Appendix A.  Collected", "Appendix B.  ")
+    core = between(upstream_text("rfc5234.txt"), "B.1.  Core Rules", "B.2.  Common Encoding")
+    collected = between(upstream_text("rfc9110.txt"), "Appendix A.  Collected", "Appendix B.  ")
     rules = {**abnf.read_rules(core, 9), **abnf.read_rules(collected, 3)}
     fixed = re.search(
         r"It should say: (ranges-specifier = .+?) range-set =",

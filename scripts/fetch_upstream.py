@@ -43,7 +43,8 @@ def main(argv: list[str]) -> int:
         (FOLDER / name).write_bytes(body)
         print(f"{name}: ok")
     if update:
-        MANIFEST.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+        text = json.dumps(manifest, indent=2) + "\n"
+        MANIFEST.write_text(text, encoding="utf-8", newline="\n")
     return 1 if failed else 0
 
 

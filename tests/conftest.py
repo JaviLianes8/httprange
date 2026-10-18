@@ -60,3 +60,12 @@ def section(text: str, number: str, title: str) -> str:
     rest = text[heading.end() :]
     following = re.search(r"^(?:\d+\.)+\d*\.? {2}\S", rest, re.MULTILINE)
     return rest[: following.start()] if following else rest
+
+
+def between(text: str, start: str, end: str) -> str:
+    """The text from the line starting with ``start`` to the line starting with ``end``."""
+    first = re.search("^" + re.escape(start), text, re.MULTILINE)
+    assert first is not None, start
+    last = re.search("^" + re.escape(end), text[first.end() :], re.MULTILINE)
+    assert last is not None, end
+    return text[first.end() : first.end() + last.start()]
