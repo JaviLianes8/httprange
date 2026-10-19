@@ -96,8 +96,9 @@ class RangeRequest:
 def parse_range_request(value: str, *, max_empty: int = MAX_EMPTY_ELEMENTS) -> RangeRequest:
     """Parse a ``Range`` header value with the strict RFC 9110 grammar.
 
-    No whitespace may surround the unit or sit inside a range-spec; optional
-    whitespace is allowed after ``=`` (RFC 9110 erratum 7306) and around commas, and up
+    Spaces and tabs around the whole field value are ignored (RFC 9110 5.5), but none
+    may sit between the unit and ``=`` or inside a range-spec; optional whitespace is
+    allowed after ``=`` (RFC 9110 erratum 7306) and around commas, and up
     to ``max_empty`` empty list elements are ignored (RFC 9110 5.6.1.2). Byte ranges
     follow 14.1.2: ``bytes=0-499``, ``bytes=9500-``, ``bytes=-500``, ``bytes=0-0,-1``.
     An int-range whose last position precedes the first is invalid. Raises

@@ -132,10 +132,14 @@ def evaluate_range_request(
     - no ``Range``, or a method other than ``GET``: 200 (14.2, MUST ignore);
     - an ``If-Range`` that does not match ``etag`` / ``last_modified``: 200 (13.1.5);
     - an empty representation: 200 (14.2 allows ignoring it);
+    - a header without a token unit and ``=``, or with an invalid list: 200 (14.2 allows
+      ignoring it);
     - a range unit other than ``bytes``: 200 (14.2, MUST ignore);
-    - an invalid ``Range`` value: 200 (14.2 allows ignoring it);
-    - too many or too overlapping ranges: 416, or 200 with ``on_excessive="ignore"``;
+    - more than ``policy.max_ranges`` specs: 416, or 200 with ``on_excessive="ignore"``,
+      even when a later spec is invalid (they are counted before their syntax is read);
+    - an invalid range-spec: 200 (14.2 allows ignoring it);
     - no satisfiable range: 416;
+    - more than ``policy.max_overlapping`` ranges on one byte: 416 (200 with "ignore");
     - otherwise 206 with the resolved (and, per ``policy``, coalesced) ranges.
 
     Every argument is checked first, whatever the headers hold: a wrong type, a naive
@@ -145,6 +149,9 @@ def evaluate_range_request(
 
     >>> evaluate_range_request(method="GET", range_header="bytes=-500", length=10000)
     RangeDecision(status=206, ranges=(ByteRange(first=9500, last=9999),), length=10000, reason='1 range(s) satisfiable')
+    >>> many = "bytes=" + "0-0," * 100 + "x"
+    >>> evaluate_range_request(method="GET", range_header=many, length=10).status
+    416
     """  # noqa: E501
     method = plain_str(method, RangeError, "method")
     header = optional_str(range_header, RangeError, "range_header")

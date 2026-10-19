@@ -25,7 +25,7 @@ from ._parts import BytePart, MultipartBody
 from ._resolve import RangePolicy, resolve_ranges
 from ._spec import RangeSpec, parse_range, resolve
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 __all__ = [
     "BytePart",

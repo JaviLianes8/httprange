@@ -26,7 +26,7 @@ import importlib.metadata, importlib.resources, pickle
 import httprange as hr
 
 assert "site-packages" in hr.__file__, hr.__file__
-assert hr.__version__ == "1.0.0" == importlib.metadata.version("httprange")
+assert hr.__version__ == "1.0.1" == importlib.metadata.version("httprange")
 assert sorted(hr.__all__) == sorted(n for n in dir(hr) if not n.startswith("_"))
 assert importlib.resources.files("httprange").joinpath("py.typed").is_file()
 data = bytes(range(256)) * 40
@@ -90,12 +90,12 @@ def _check(python: Path, work: Path) -> None:
 
 
 def test_wheel_and_sdist_contents(dist: Path) -> None:
-    (wheel,) = dist.glob("httprange-1.0.0-*.whl")
-    (sdist,) = dist.glob("httprange-1.0.0.tar.gz")
+    (wheel,) = dist.glob("httprange-1.0.1-*.whl")
+    (sdist,) = dist.glob("httprange-1.0.1.tar.gz")
     names = zipfile.ZipFile(wheel).namelist()
     assert "httprange/py.typed" in names and "httprange/__main__.py" in names
     assert any(name.endswith("licenses/LICENSE") for name in names)
-    assert all(name.startswith(("httprange/", "httprange-1.0.0.dist-info/")) for name in names)
+    assert all(name.startswith(("httprange/", "httprange-1.0.1.dist-info/")) for name in names)
     package = [name for name in names if name.startswith("httprange/")]
     assert all(name.endswith((".py", "py.typed")) for name in package), package
     listing = _run(sys.executable, "-m", "tarfile", "-l", sdist).stdout
@@ -106,7 +106,7 @@ def test_wheel_and_sdist_contents(dist: Path) -> None:
 
 
 def test_installed_wheel_end_to_end(dist: Path, tmp_path: Path) -> None:
-    (wheel,) = dist.glob("httprange-1.0.0-*.whl")
+    (wheel,) = dist.glob("httprange-1.0.1-*.whl")
     python = _venv(tmp_path / "venv")
     installed = _run(python, "-m", "pip", "install", "-q", wheel)
     assert installed.returncode == 0, installed.stderr
@@ -116,20 +116,23 @@ def test_installed_wheel_end_to_end(dist: Path, tmp_path: Path) -> None:
 @pytest.mark.skipif(
     os.environ.get("HTTPRANGE_E2E_PYPI") != "1", reason="set HTTPRANGE_E2E_PYPI=1 to use PyPI"
 )
-def test_upgrade_in_place_from_the_pypi_release(dist: Path, tmp_path: Path) -> None:
-    (wheel,) = dist.glob("httprange-1.0.0-*.whl")
+@pytest.mark.parametrize("old_version", ["0.2.0", "1.0.0"])
+def test_upgrade_in_place_from_the_pypi_release(
+    dist: Path, tmp_path: Path, old_version: str
+) -> None:
+    (wheel,) = dist.glob("httprange-1.0.1-*.whl")
     python = _venv(tmp_path / "venv")
-    old = _run(python, "-m", "pip", "install", "-q", "httprange==0.2.0")
+    old = _run(python, "-m", "pip", "install", "-q", f"httprange=={old_version}")
     assert old.returncode == 0, old.stderr
     probe = (
         "import httprange as h; print(h.__version__, h.resolve_ranges('bytes=0-0,-1', 10),"
         " h.evaluate_range_request(method='GET', range_header='bytes=9-', length=5).status)"
     )
     before = _run(python, "-I", "-c", probe, cwd=tmp_path)
-    assert before.stdout.split()[0] == "0.2.0", before.stderr
+    assert before.stdout.split()[0] == old_version, before.stderr
     upgraded = _run(python, "-m", "pip", "install", "-q", "--upgrade", wheel)
     assert upgraded.returncode == 0, upgraded.stderr
     after = _run(python, "-I", "-c", probe, cwd=tmp_path)
-    assert after.stdout.split()[0] == "1.0.0", after.stderr
+    assert after.stdout.split()[0] == "1.0.1", after.stderr
     assert after.stdout.split(None, 1)[1] == before.stdout.split(None, 1)[1]
     _check(python, tmp_path / "work")

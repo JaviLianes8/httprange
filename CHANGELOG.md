@@ -6,6 +6,25 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-19
+
+No behaviour change: the code answers exactly as 1.0.0 does. The documentation now
+states the order the code already follows.
+
+### Fixed
+
+- The `evaluate_range_request` docstring, the GUIDE decision table and the README 14.2
+  row give the rules in the order they apply. The unit and list of a header are read
+  first, then the unit, then the specs are counted, and only then is each spec's
+  syntax read: more than `policy.max_ranges` specs give 416 (`ExcessiveRanges` from
+  `resolve_ranges`) even when one of them is invalid, while a lone invalid spec gives
+  200. No satisfiable range gives 416 before the overlap limit is applied.
+- The `parse_range_request` docstring says that spaces and tabs around the whole field
+  value are ignored; whitespace between the unit and `=` is still refused.
+- GUIDE section 6 gives both error prefixes of the command line: `httprange: error:`
+  and, for a bad argument of a subcommand, `httprange <command>: error:` after the
+  usage line.
+
 ## [1.0.0] - 2026-10-19
 
 The public API is now stable: the thirty names in `httprange.__all__`, their

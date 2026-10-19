@@ -49,16 +49,20 @@ fetches it with `urllib` and `curl`.
 
 ### What `evaluate_range_request` decides
 
+The rows apply in this order, and the first one that fits decides:
+
 | Situation | Status | RFC 9110 |
 |---|---|---|
 | No `Range` header | 200 | 14.2 |
 | Method other than `GET` (case-sensitive) | 200 | 14.2, MUST ignore |
 | `If-Range` does not match | 200 | 13.1.5, MUST ignore Range |
-| Invalid `Range` value | 200 | 14.2, MAY ignore |
-| Unit other than `bytes` | 200 | 14.2, MUST ignore |
 | Empty representation | 200 | 14.2, MAY ignore |
-| Too many or too overlapping ranges | 416 (or 200 with `on_excessive="ignore"`) | 14.2, 15.5.17 |
+| No token unit and `=`, or an invalid list | 200 | 14.2, MAY ignore |
+| Unit other than `bytes` | 200 | 14.2, MUST ignore |
+| More than `max_ranges` specs, counted before their syntax is read | 416 (or 200 with `on_excessive="ignore"`) | 14.2, 15.5.17 |
+| Invalid range-spec | 200 | 14.2, MAY ignore |
 | Nothing satisfiable | 416 with `Content-Range: bytes */length` | 14.4, 15.5.17 |
+| More than `max_overlapping` ranges on one byte | 416 (or 200 with `on_excessive="ignore"`) | 14.2, 15.5.17 |
 | Otherwise | 206 | 15.3.7 |
 
 A single requested range is never answered as multipart (15.3.7.2). When several ranges
@@ -144,4 +148,5 @@ reason: If-Range does not match
 ```
 
 Every subcommand accepts `--json` where output is structured. Errors print
-`httprange: error: ...` on stderr and exit with status 1.
+`httprange: error: ...` on stderr (`httprange <command>: error: ...` after the usage
+line for a bad argument of a subcommand) and exit with status 1.

@@ -187,7 +187,7 @@ def test_version_is_a_three_part_string() -> None:
     parts = hr.__version__.split(".")
     assert len(parts) == 3
     assert all(part.isdigit() for part in parts)
-    assert hr.__version__ == "1.0.0"
+    assert hr.__version__ == "1.0.1"
 
 
 def test_the_package_ships_type_information() -> None:

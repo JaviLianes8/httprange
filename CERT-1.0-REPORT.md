@@ -17,6 +17,9 @@ Progress:
 - [x] Independent reviewer reports PASS (item 16), at 0e51b47
 - [x] Gates (item 15), run at ae86f77
 - [x] PR #3 open from `release/1.0.0`, trace guard CLEAN at 299ee56 (item 17); merge and publish left to the maintainer
+- [x] PR #3 merged as `main` 0e25248, published to PyPI as 1.0.0 on 2026-10-19
+- [x] Round 11 (fresh lenses at 4aa8bbc) fixed on `release/1.0.1` from `main` (docs only, version 1.0.1)
+- [ ] Lenses re-run on the `release/1.0.1` head and report PASS before 1.0.1 is published
 
 ## Scorecard (author)
 
@@ -465,10 +468,43 @@ exit 0. The first full run there had one setup error in `test_e2e_cli.py` (a
 further full runs on the same clone were green, so it is recorded as a transient of that
 machine, not hidden.
 
+### Round 11 (fresh lenses a, c, d and e at 4aa8bbc): 35 findings, fixed on `main` as 1.0.1
+
+A second set of lenses was pointed at 4aa8bbc after `release/1.0.0` had moved on to
+d684822, been squash-merged as `main` 0e25248 and published to PyPI as 1.0.0. The PyPI
+1.0.0 wheel is byte-identical to `main` (lens a A6, lens d F1), so this round was fixed on
+top of `main`, on the new branch `release/1.0.1`, and every finding was re-checked against
+the shipped code first. 30 of the 35 (and half of a A5) were already fixed by round 6 at the same commit
+(same repro, same pin); their repros were run again on `main` and all now give the typed
+error or the documented answer. Five were still true on `main`: the retargeting (a A6, d F1) and three documentation gaps (a A2, A4, A5 part 1);
+no behaviour changed in this round, so the code of 1.0.1 answers exactly as 1.0.0 does.
+
+| Lens / id | Finding | State on `main` 0e25248 | Fix in this round |
+| --- | --- | --- | --- |
+| a A6, d F1 | 4aa8bbc is not the commit on PyPI; `release/1.0.0` is gone | True: PyPI 1.0.0 is `main`, which carries rounds 6 to 10 on top of 4aa8bbc | Fixes go on `release/1.0.1` from `main`, version 1.0.1; lenses b and d, whose PASS was given at 4aa8bbc, should be re-run on this head before 1.0.1 is published |
+| a A2 | `evaluate_range_request` docstring put "invalid Range: 200" before the count; README 14.2 row silent | Still true | Docstring, GUIDE table and README row give the real order (unit and list, unit, count, spec syntax, satisfiable, overlap); a doctest shows 416 for 100 specs and one invalid one |
+| a A1, e F25 (N21) | `resolve_ranges` docstring put the unit before the list | Fixed in round 6 | none needed |
+| a A3 | An invalid `last_modified` string was ignored | Fixed in round 6 (`MalformedDate`) | none needed |
+| a A4 | `parse_range_request` said no whitespace may surround the unit, yet trims the value | Still true | Docstring: spaces and tabs around the whole field value are ignored (RFC 9110 5.5), none between the unit and `=` |
+| a A5 (1) | GUIDE gave only the `httprange: error:` prefix | Still true | GUIDE section 6 gives the `httprange <command>: error:` prefix for a bad subcommand argument |
+| a A5 (2) | `[0.2.0]` and `[0.1.0]` had no dates | Fixed in round 6 | none needed |
+| c F1 to F3 | Unchecked `overlaps` subclass, non-iterator `__iter__`, quadratic policy `repr` | Fixed in round 6 | none needed |
+| e F1 to F24, F25 (other ids) | Surviving mutants N12, N18 to N20, N26, N27, N34, N35, N38 to N41, N47, N49, N58, N60, N63, N67, N74 to N77, N82, N85, N86, N89, N98, N100, N105 | Pinned in round 6 (`test_contract_pins.py`, `test_contract_pins_wire.py`), every named test present | none needed |
+
+The documented orders and shapes are pinned in the default gate by the new
+`tests/test_contract_doc_order.py`: counting before syntax (416, 200 with `"ignore"`, and
+`ExcessiveRanges` from `resolve_ranges`), unit and list before the count, the empty
+representation first, nothing satisfiable before the overlap limit, whitespace around the
+whole `Range` value accepted and between the unit and `=` refused, and both CLI error
+prefixes with exit status 1. With the count moved after the spec parsing in
+`_resolve._specs`, `test_specs_are_counted_before_their_syntax_is_read` fails; with the
+source restored it passes. The opt-in upgrade test now upgrades in place from both PyPI
+releases, 0.2.0 and 1.0.0.
+
 ### Disputed findings
 
 None in round 1. None in round 2. None in round 3. None in round 4. None in round 5.
-None in round 6. None in round 7. None in round 8. None in round 9. None in round 10.
+None in round 6. None in round 7. None in round 8. None in round 9. None in round 10. None in round 11.
 
 ## Final verdicts
 
