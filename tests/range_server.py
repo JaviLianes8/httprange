@@ -7,8 +7,9 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import cast
 
-import httprange as hr
+from docblocks import python_blocks
 
 CONTENT = bytes((i * 7) % 256 for i in range(10000))
 ETAG = '"v1"'
@@ -16,41 +17,24 @@ LAST_MODIFIED = "Fri, 02 Jan 2026 03:04:05 GMT"
 
 
 def _handler(path: Path) -> type[BaseHTTPRequestHandler]:
-    class Handler(BaseHTTPRequestHandler):
-        def do_GET(self) -> None:
-            data = path.read_bytes()
-            decision = hr.evaluate_range_request(
-                method=self.command,
-                range_header=self.headers.get("Range"),
-                length=len(data),
-                if_range=self.headers.get("If-Range"),
-                etag=ETAG,
-                last_modified=LAST_MODIFIED,
-            )
-            self.send_response(decision.status)
-            self.send_header("Accept-Ranges", "bytes")
-            self.send_header("ETag", ETAG)
-            if decision.status == 416:
-                body = b""
-            elif decision.is_multipart:
-                multipart = hr.build_multipart_byteranges(
-                    data, decision.ranges, content_type="application/octet-stream"
-                )
-                self.send_header("Content-Type", multipart.content_type)
-                body = multipart.body
-            else:
-                self.send_header("Content-Type", "application/octet-stream")
-                body = data[decision.ranges[0].as_slice()] if decision.ranges else data
-            if decision.content_range is not None:
-                self.send_header("Content-Range", decision.content_range)
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
+    """The handler of GUIDE.md section 1, run as written, plus an ``ETag`` header."""
+    namespace: dict[str, object] = {
+        "load_representation": path.read_bytes,
+        "current_etag": lambda: ETAG,
+        "last_modified": lambda: LAST_MODIFIED,
+    }
+    exec(compile(python_blocks("GUIDE.md")[0], "GUIDE.md", "exec"), namespace)
+    guide = cast("type[BaseHTTPRequestHandler]", namespace["Handler"])
 
-        def log_message(self, format: str, *args: object) -> None:
-            pass
+    def end_headers(self: BaseHTTPRequestHandler) -> None:
+        self.send_header("ETag", ETAG)
+        guide.end_headers(self)
 
-    return Handler
+    def log_message(self: BaseHTTPRequestHandler, format: str, *args: object) -> None:
+        pass
+
+    members = {"end_headers": end_headers, "log_message": log_message}
+    return type("Handler", (guide,), members)
 
 
 @contextmanager

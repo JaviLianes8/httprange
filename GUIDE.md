@@ -90,7 +90,7 @@ Coalesced ranges keep the order of their earliest spec, so parts follow request 
 - `bytes=0-499`, `bytes=9500-`, `bytes=-500`, `bytes=0-0,-1`,
   `bytes= 0-999, 4500-5499, -1000` (the RFC's own example) are valid;
 - `bytes =0-1`, `bytes=0 - 1`, `bytes=500-100`, non-ASCII digits and numerals of more
-  than 4000 digits raise `MalformedRange`;
+  than 4000 significant digits (leading zeros are not counted) raise `MalformedRange`;
 - `items=1.2-4.3` parses to `RangeRequest(unit='items', specs=(), other=('1.2-4.3',))`.
 
 `parse_range`, from 0.1, stays lenient about spaces around `=` and only accepts `bytes`.
@@ -128,6 +128,12 @@ if_range_matches(
 A date only counts when it is a strong validator (8.8.2.2). The default
 `date_is_strong=True` trusts your dates; if the representation can change twice within
 one second, pass `date_is_strong=False` and only ETags will match.
+
+Your own validators are checked strictly: `last_modified` must be an aware `datetime`
+or an HTTP-date, and anything else raises `RangeError` (`MalformedDate` for a string
+such as `"2026-01-02T03:04:05Z"`), so a typo never passes as a mismatch. An `etag` that
+is not a strong entity-tag (a weak one such as `W/"v1"`, or a value without quotes)
+never matches, so the client gets the whole representation.
 
 ## 6. Command line
 

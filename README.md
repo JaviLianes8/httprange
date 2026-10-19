@@ -1,5 +1,7 @@
 # httprange
 
+[![Lianes8 Certified](https://lianes8studio.com/certified/lianes8-certified-badge.svg)](https://lianes8studio.com/certified)
+
 Parse and build HTTP Range and Content-Range headers (RFC 9110), zero dependencies, fully
 typed.
 
@@ -28,13 +30,13 @@ decision = evaluate_range_request(
     etag='"v1"',  # current validators of the representation
 )
 decision.status  # 200, 206 or 416
-decision.content_range  # None here (multipart); 'bytes 0-0/10000' or 'bytes */10000' otherwise
+decision.content_range  # None for a 200 or, as here, a multipart 206; else 'bytes 0-0/10000' or 'bytes */10000'
 if decision.is_multipart:
     body = build_multipart_byteranges(data, decision.ranges, content_type="video/mp4")
     body.content_type  # 'multipart/byteranges; boundary=...'
 ```
 
-The full recipe for a handler is in [GUIDE.md](GUIDE.md).
+The full recipe for a handler is in [GUIDE.md](https://github.com/JaviLianes8/httprange/blob/main/GUIDE.md).
 
 ## Building blocks
 
@@ -70,8 +72,8 @@ if_range_matches('W/"v1"', etag='W/"v1"')  # False: weak tags never match
 ```
 
 The 0.1 API (`parse_range`, `resolve`, `RangeSpec.resolve`, `build_content_range`) keeps
-its signatures and results for valid input; validation is stricter, as listed under
-"Fixed" in the [CHANGELOG](CHANGELOG.md).
+its signatures and results for valid input. Every change since 0.2.0, mostly stricter
+validation, is listed in the [CHANGELOG](https://github.com/JaviLianes8/httprange/blob/main/CHANGELOG.md).
 
 ## What the RFC says, and what this library does
 
@@ -108,17 +110,29 @@ Errors go to stderr with exit status 1. `httprange --help` lists more examples.
 
 ## Why
 
-Byte-range handling is defined once in RFC 9110, yet every large HTTP stack ships its
-own private copy: Starlette, aiohttp, werkzeug and Django each vendor their own parser
-inside the framework, none of it importable on its own. There is no small, zero
-dependency, fully typed package that parses a `Range` header strictly, resolves it under
-a sane policy, and builds the matching 206, 416 or multipart reply. Reach for it in a
-plain WSGI or ASGI handler, a static file server, a download client that resumes, or any
-endpoint that needs correct partial content without pulling in a framework.
+RFC 9110 defines byte ranges once, but in Python the code that implements them lives
+inside web frameworks, each with its own scope (checked on 2026-10-19 against the releases named):
+
+- werkzeug 3.1.9 exports `parse_range_header` and friends, but it is a WSGI toolkit
+  that depends on MarkupSafe, and its responses serve only a single range: a request for
+  several ranges is answered with 416. It has no `multipart/byteranges` builder or
+  parser.
+- Starlette 1.9.0 serves single and multiple ranges from `FileResponse`, but the parser
+  is a private method of that class.
+- aiohttp 3.14.5 offers `request.http_range`, which describes one range as a `slice`
+  and raises `ValueError` for a list of ranges.
+- Django 6.1.2 does not handle `Range` in `HttpResponse`, `FileResponse` or the static
+  file view.
+
+`httprange` is the protocol part on its own: zero dependencies, fully typed, strict about
+the grammar, with a denial-of-service policy, `If-Range`, the 416 rules and
+`multipart/byteranges` in both directions. Use it in a plain WSGI or ASGI handler, a
+static file server, a client that resumes downloads, or a test that checks a server's
+206 replies. If your framework already serves the files you need, keep using it.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](https://github.com/JaviLianes8/httprange/blob/main/LICENSE).
 
 ## Links
 

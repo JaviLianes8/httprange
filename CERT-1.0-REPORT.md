@@ -1,0 +1,558 @@
+# httprange 1.0.0 certification report
+
+The 1.0.0 certification bar (19 items) applied to httprange. PyPI has 0.2.0 only
+(checked on 2026-10-19 at https://pypi.org/pypi/httprange/json), so 1.0.0 must upgrade
+cleanly from it and every behaviour change against it is listed in the CHANGELOG.
+
+Progress:
+- [x] Branch `release/1.0.0` created from `main` (3e1d009, the 0.2.0 code)
+- [x] Baseline gates on 0.2.0
+- [x] API review and 1.0.0 changes (item 1)
+- [x] Errors, typing, docstrings and doctests (items 2 to 5)
+- [x] Ground truth: RFC texts fetched live, reference implementations run (item 7)
+- [x] Contract, fuzz and author mutation round (items 6, 9, 18)
+- [x] Docs: README, GUIDE, CHANGELOG (items 11, 12)
+- [x] Packaging, e2e and upgrade from PyPI 0.2.0, every Python (items 8, 10, 13, 14)
+- [x] Five QA lenses report PASS (item 19): every finding of rounds 1 to 10 fixed and re-verified
+- [x] Independent reviewer reports PASS (item 16), at 0e51b47
+- [x] Gates (item 15), run at ae86f77
+- [x] PR #3 open from `release/1.0.0`, trace guard CLEAN at 299ee56 (item 17); merge and publish left to the maintainer
+
+## Scorecard (author)
+
+| # | Item | Result |
+| --- | --- | --- |
+| 1 | Public API reviewed for stability | PASS: 30 names; parameter names, fields and defaults of 0.2.0 kept and pinned; every behaviour change in the CHANGELOG |
+| 2 | `__all__` exact, no private imports in docs | PASS: `test_the_package_exports_nothing_else`; public classes report `httprange` as their module |
+| 3 | Docstrings with runnable examples, doctests | PASS: every public name and member has an example; `pytest --doctest-modules src` 43 passed |
+| 4 | Typed end to end | PASS: `mypy --strict src tests`, `py.typed` shipped, no `Any` in the public API |
+| 5 | Typed, documented, bounded errors | PASS: `RangeError` (a `ValueError`) and seven subclasses, wrong types included; messages quote at most 40 characters of input |
+| 6 | Contract tests of every public name | PASS: `test_contract.py`, `test_contract_api.py`, `test_types.py` |
+| 7 | Real ground truth | PASS: see below |
+| 8 | Real e2e from the wheel | PASS: wheel in a fresh venv driven from an empty folder, console script and `python -m`, upgrade in place from PyPI 0.2.0 |
+| 9 | Seeded fuzz, no crash, hang or blowup | PASS: see below |
+| 10 | Supported Pythons | PASS: CPython 3.10.22, 3.11.17, 3.12.15, 3.13.16, 3.14.8, 3.14.8 free-threaded |
+| 11 | README and `twine check` | PASS: `twine check --strict`, absolute links, verified comparison |
+| 12 | Dated CHANGELOG section | PASS: 1.0.0, 2026-10-19 |
+| 13 | pyproject 1.0.0, Production/Stable | PASS |
+| 14 | sdist and wheel contents | PASS |
+| 15 | Gates each exit 0 | PASS: see Gates |
+| 18 | Contracts bite (mutations) | PASS: 19 author mutants, all killed (one after a new contract) |
+
+## Baseline on 0.2.0 (before any change)
+
+`ruff format --check .`, `ruff check .` and `mypy --strict src tests` exit 0 on 3e1d009.
+`pytest --doctest-modules src` collected no doctest: no public name had a runnable example.
+
+## API review (item 1)
+
+Kept: the 30 public names of 0.2.0 with their parameter names, fields and defaults,
+pinned by `tests/test_contract_api.py`. Widened: the `data` and `body` annotations of the
+multipart functions (`bytes | bytearray | memoryview`, all already accepted). Changed, all
+in the CHANGELOG and each asserted on both releases by `tests/test_upgrade_changes.py`
+and `tests/test_upgrade_changes_wire.py` (31 cases): wrong argument types raise
+`RangeError`; value objects validate their fields; `ContentRange` lower-cases its unit;
+range counting before spec syntax; stricter multipart building and parsing; the RFC 850
+fifty-year rule on the full instant; bounded messages; `python -m httprange`; the stray
+`annotations` name is gone. `tests/test_upgrade.py` runs 57,000 seeded calls on
+0.2.0 and 1.0.0 and finds no other difference.
+
+## Ground truth (item 7)
+
+Fetched by `scripts/fetch_upstream.py` into the ignored `tests/upstream` folder;
+`tests/upstream/MANIFEST.json` records URL, revision, size, sha256 and licence, and the
+tests check the hash before reading. All six were fetched again on 2026-10-19 on another
+machine and matched the manifest. Nothing fetched is committed or shipped.
+
+- RFC 9110, RFC 9112, RFC 5234 and verified erratum 7306 (`test_spec_grammar.py`): the
+  ABNF of RFC 9110 Appendix A with the RFC 5234 core rules becomes regular expressions and
+  random sentences (`tests/abnf.py`); seeded sentences and their mutations must get the
+  same verdict from the grammar and from the strict parsers for `Range`,
+  `Content-Range`, `Accept-Ranges` and HTTP-dates.
+- RFC 9110 sections 14, 15.3.7 and 15.5.17 (`test_spec_ranges.py`): every example header
+  and expected offset is cut from the text.
+- RFC 9110 5.6.7, 8.8.3.2 and 13.1.5 (`test_spec_conditional.py`): the three example
+  dates, the strong comparison column of Table 3, the If-Range steps.
+- RFC 9110 14.6 and RFC 2046 5.1.1 (`test_spec_multipart.py`): the example messages cut
+  from the text, the `bchars` set and the body grammar.
+- Reference implementations run live (Node.js 24.18.0): range-parser 1.3.0 (the npm
+  tarball behind Express and send) agrees inside RFC 9110 and each departure is asserted;
+  werkzeug 3.1.9 and aiohttp 3.14.5 likewise; Python's `email`, `email.utils`,
+  `http.cookiejar` and `time.asctime` as oracles for bodies and dates; curl 8 against a
+  server built on the library; PyPI 0.2.0 as described above.
+
+## Fuzz and hostile input (item 9)
+
+`tests/test_fuzz.py`: three seeds of 1,500 to 5,000 cases per property (range requests
+round trip or fail typed; resolution keeps its invariants, including request order after
+coalescing; Content-Range, multipart bodies and dates round trip; mutated bodies fail
+typed; If-Range is symmetric and decisions consistent). `tests/test_hostile.py`: 16 input
+shapes timed at 25,000 and 200,000 characters (linear growth), and 18 entry points fed
+100,000 characters with messages that quote at most 40 of them.
+`tests/test_robustness.py`: the smallest interpreter digit limit, subclasses that lie
+about themselves, a released `memoryview`, caller exceptions passed through, 8 threads.
+
+## Author mutation round (item 18)
+
+Each mutant applied alone to a fresh clone of the pushed branch on another machine, the
+full suite (fetched sources, Node.js reference, werkzeug, aiohttp, 0.2.0 oracle) run with
+`-x` and a 300 s per-test limit. M19 survived the first round; the contract
+`test_rejects_a_given_boundary_found_in_a_part` now covers a boundary at the start,
+middle and end of a part, and the second round at ae86f77 killed all 19.
+
+| Id | Module | Mutation | Caught by |
+| --- | --- | --- | --- |
+| M1 | `_spec.py` | suffix range one byte short | `test_cli.py::test_resolve_prints_content_ranges` |
+| M2 | `_spec.py` | first position equal to the length accepted | `test_contract.py::test_each_public_name_keeps_its_promise[UnsatisfiableRange]` |
+| M3 | `_spec.py` | last position clamped one past the end | `test_e2e_server.py::test_single_ranges_give_206_and_exact_bytes` |
+| M4 | `_resolve.py` | `-0` on an empty body treated as satisfiable | `test_resolve.py::test_empty_representation_with_a_suffix_selects_nothing` |
+| M5 | `_resolve.py` | overlap limit off by one | `test_cli.py::test_resolve_prints_content_ranges` |
+| M6 | `_resolve.py` | adjacent ranges not coalesced | `test_contract.py::test_each_public_name_keeps_its_promise[resolve_ranges]` |
+| M7 | `_resolve.py` | coalesced ranges in offset order, not request order | `test_e2e_server.py::test_three_ranges_arrive_in_request_order` |
+| M8 | `_resolve.py` | range count limit off by one | `test_cli.py::test_resolve_enforces_max_ranges` |
+| M9 | `_content_range.py` | `ContentRange.length` off by one | `test_contract_api.py` (and `test_content_range_parse.py`) |
+| M10 | `_content_range.py` | unit case kept | `test_content_range_parse.py::test_parses_rfc_examples` |
+| M11 | `_content_range.py` | first and last swapped when parsing | `test_cli.py::test_errors_go_to_stderr_with_exit_1` |
+| M12 | `_conditional.py` | weak entity tags match | `test_conditional.py::test_entity_tags_use_strong_comparison` |
+| M13 | `_conditional.py` | `date_is_strong=False` ignored | `test_conditional.py::test_weak_dates_and_malformed_dates_never_match` |
+| M14 | `_dates.py` | leap second 60 rejected | `test_conditional.py::test_leap_second_is_read_as_fifty_nine` |
+| M15 | `_dates.py` | fifty-year rule by calendar year only | `test_conditional.py::test_fifty_year_rule_compares_full_dates` |
+| M16 | `_decision.py` | a single range answered as multipart | `test_decision.py::test_single_range_is_a_single_part_206` |
+| M17 | `_decision.py` | method compared without case | `test_decision.py::test_range_is_ignored_for_methods_other_than_get[get]` |
+| M18 | `_multipart.py` | `max_parts` off by one | `test_multipart.py::test_caps_the_number_of_parts` |
+| M19 | `_multipart.py` | boundary at the start of a part not detected | `test_multipart.py::test_rejects_a_given_boundary_found_in_a_part[--abcxx]` |
+
+## Packaging, e2e and Pythons (items 8, 10, 13, 14)
+
+- `tests/test_e2e_wheel.py` (`HTTPRANGE_E2E=1`, `HTTPRANGE_E2E_PYPI=1`): builds wheel and
+  sdist, inspects both, installs the wheel in a fresh venv and runs a consumer program
+  with `-I` from an empty folder, the `httprange` script and `python -m httprange`; then
+  installs 0.2.0 from PyPI, upgrades it in place and checks the same results.
+  `tests/test_e2e_cli.py` drives the installed console script by subprocess.
+- Wheel: the package modules, `py.typed`, `__main__.py`, the licence and metadata only.
+  Sdist: sources, tests, docs, scripts and `tests/upstream/MANIFEST.json`; no fetched
+  files, no reports, no caches. `twine check --strict` passes for both.
+- Every supported interpreter (installed on the other machine, as on this PC), the
+  wheel in a fresh venv and the sdist's own suite run with `src` removed, at ae86f77:
+  CPython 3.10.22, 3.11.17, 3.12.15, 3.13.16, 3.14.8 and 3.14.8 free-threaded, 965 passed
+  and no skip each (the two e2e modules run separately). 3.8 and 3.9 are below
+  `requires-python`.
+
+## Gates (item 15)
+
+At ae86f77 on another machine from a fresh clone, CPython 3.14.2, each command on its
+own, with the fetched sources, Node.js, werkzeug, aiohttp, curl, the 0.2.0 oracle,
+`HTTPRANGE_E2E=1` and `HTTPRANGE_E2E_PYPI=1`: `ruff format --check .`, `ruff check .`,
+`mypy --strict src`, `mypy --strict src tests` and `pytest` (976 passed, no skip) all
+exit 0.
+
+## QA lenses (item 19) and independent review (item 16)
+
+### Round 1 (at 5c39f0e): 5 lenses, 25 findings, all fixed
+
+Verdicts: a (API and docs) 5 findings, b (correctness) 2, c (adversarial) 4,
+d (packaging and e2e) 3, e (contract strength) 11. None was disputed.
+
+| Lens / id | Finding | Fix | Contract |
+| --- | --- | --- | --- |
+| a F1 | Docstring, README and GUIDE examples were not run by the gate; the e2e handler was a copy | Public functions report `httprange` as their module (`doctest.testmod(httprange)`: 75 examples); README and GUIDE blocks run with their claims checked; the e2e server runs the GUIDE handler from the file | `test_docs.py`, `range_server.py` |
+| a F2 | `BytePart`, `MultipartBody`, `RangeDecision`, `RangeRequest` annotations rejected documented inputs | Explicit `__init__` taking `bytes`/`bytearray`/`memoryview` and lists; fields unchanged | `test_contract_inputs.py` (part of `mypy --strict tests`) |
+| a F3 | GUIDE: the 4000-digit cap counts significant digits only | GUIDE, CHANGELOG and the error message say so | `test_the_digit_cap_counts_significant_digits_only` |
+| a F4 | Two CHANGELOG 1.0.0 statements did not match 0.2.0 | Reworded after running both releases (416 came from a comma count; only non-token methods are quoted) | wire tests unchanged |
+| a F5 | README: `content_range` is also `None` for a 200 | Comment fixed and checked by the README runner | `test_readme_quick_start_comment_holds_for_every_status` |
+| b F1 | A leap second `:60` matched `:59` in If-Range | Date parse keeps a leap flag; dates match only with equal flags | `test_a_leap_second_*` |
+| b F2 | `resolve()` doc called its empty-body raise the RFC 416 case | 0.1 behaviour kept and documented, pointing to `resolve_ranges` | `test_legacy_resolve_refuses_every_spec_on_an_empty_representation` |
+| c F1 | `to_utc` used the subclass's `astimezone`/`utcoffset`; invalid offsets leaked `ValueError`/`TypeError` | Fields read through the `datetime` descriptors, offset by the base method, errors mapped to `RangeError` | `test_contract_objects.py` |
+| c F2 | Subclass `byte_range`/`as_slice` overrides steered results | Caller subclasses of `RangeSpec`, `ByteRange`, `ContentRange`, `BytePart`, `RangePolicy` copied to plain instances | `test_contract_objects.py` |
+| c F3 | `repr` failed under `sys.set_int_max_str_digits(640)` | Own `__repr__` with `int_text`; error args hold the message only | `test_*_print_under_the_smallest_digit_limit` |
+| c F4 | `repr(UnsupportedRangeUnit)` echoed the whole unit | `args == (message,)` | `test_error_args_hold_the_message_only` |
+| d F1 | `--help`/`--version` exited 120 with a closed reader | Argparse exits flush through the same guard: exit 1, nothing on stderr | `test_cli_contract.py` (closed pipe, subprocess) |
+| d F2 | `release.ps1` refused any existing project name | Refuses only an already published version (guard run against live PyPI: 1.0.0 passes, 0.2.0 refused) | script |
+| d F3 | Opt-in tests were undocumented and silently skipped | CONTRIBUTING lists them; `check.ps1 -Full` fetches, sets them and fails on any skip (`HTTPRANGE_FULL=1`) | `conftest.py` hook |
+| e F1 to F10 | M10, M11, M56, M73, M75, M84, M86, M85, M66, M67 survived the default gate | New always-run contracts | `test_contract_edges.py`, `test_cli_contract.py` |
+| e F11 | M39, M51, M64, M68, M72, M74 were caught only by opt-in tests | Self-contained copies, written by hand from the grammar | `test_contract_edges.py` |
+
+Every behaviour change is listed in the CHANGELOG 1.0.0 section.
+
+Commits: 38fa10d (the fixes), da874da and 3051b81 (two contracts made exact after the
+mutation check below).
+
+Mutation check of this round, one mutant at a time against the round's test files
+(a kill there is a kill by the whole suite), on the other machine at da874da:
+
+| Mutant | Caught by |
+| --- | --- |
+| M10 inner zeros of `int_text` dropped | `test_wide_numbers_print_and_parse_exactly` |
+| M11 leading zeros counted toward the cap | `test_the_digit_cap_counts_significant_digits_only` |
+| M56 `last >= length` relaxed to `>` | `test_a_decision_range_must_end_before_the_length` |
+| M73 quoted-pair backslash kept | `test_a_quoted_boundary_unescapes_its_quoted_pairs` |
+| M75 DEL allowed in a field value | `test_control_characters_and_del_are_refused_in_a_part_content_type` |
+| M84 `range:` line for a single range | `test_decide_prints_exact_lines_for_a_single_range` |
+| M86 `--last-modified` ignored | `test_decide_matches_a_date_if_range_against_last_modified` |
+| M85 `cut()` removed from usage errors | `test_error_messages_are_cut_to_200_characters` |
+| M85 `cut()` removed from library errors | `test_a_long_library_error_is_cut_too` (added in 3051b81; it survived at da874da) |
+| M66 boundary collision retry removed | `test_a_random_boundary_that_collides_with_the_data_is_drawn_again` |
+| M67 up-front range check removed | `test_a_range_past_the_data_raises_the_base_error` |
+| M39 tab accepted after the unit | `test_content_range_needs_one_space_after_the_unit` |
+| M51 obs-text dropped from entity tags | `test_obs_text_entity_tags_match_by_strong_comparison` |
+| M64 unit agreement check removed | `test_parts_must_agree_on_the_range_unit` |
+| M68 duplicate part Content-Type allowed | `test_a_part_with_two_content_types_is_refused` |
+| M72 boundary trailing space allowed | `test_bad_boundary_parameters_are_refused` (survived at 38fa10d, which matched the wrong error; exact since da874da) |
+| M74 duplicate boundary parameter allowed | `test_bad_boundary_parameters_are_refused` |
+| Leap flag dropped | `test_a_leap_second_matches_only_itself` |
+| `to_utc` reads the subclass again | `test_a_datetime_subclass_cannot_change_the_formatted_date` |
+| Spec subclasses kept as given | `test_spec_subclasses_resolve_as_their_fields_say` |
+| `RangeSpec.__repr__` removed | `test_values_print_under_the_smallest_digit_limit` |
+| Unit back in `args` | `test_error_args_hold_the_message_only` |
+| Argparse exit not flushed | `test_a_closed_reader_gives_exit_1_and_nothing_on_stderr` |
+| Broken `parse_range` docstring example | `test_every_public_example_runs_from_the_package` |
+
+Gates at 3051b81 on the other machine (CPython 3.14.2, fresh venv from the pushed
+branch): `ruff format --check .`, `ruff check .`, `mypy --strict src`,
+`mypy --strict src tests` and `pytest` exit 0 (on a clean clone at 38fa10d: 734 passed,
+320 skipped; with the upstream files fetched at 3051b81: 1016 passed, 39 skipped).
+`scripts/check.ps1 -Full` exits 0 at 3051b81: 1055 passed, no skip.
+
+### Round 2 (at cdf7fa7): lenses a, c and e, 13 findings, all fixed
+
+Lens a re-verified its F1 to F5 as fixed and reported F6. Lens c re-verified its F1 to
+F4 as fixed and reported N1. Lens e re-verified its F1 to F11 as fixed (every earlier
+mutant now killed by the default gate) and reported ten surviving mutants, G1 to G10.
+None was disputed.
+
+| Lens / id | Finding | Fix | Contract |
+| --- | --- | --- | --- |
+| a F6 | Wrong-type errors said "a tuple" and "bytes" for arguments that also take a list, `bytearray` or `memoryview` | Messages say "a tuple or list" and "bytes, bytearray or memoryview"; CHANGELOG lists the checks | `test_a_wrong_type_error_names_every_accepted_type` |
+| c N1 | `RangeRequest` kept `RangeSpec` subclasses, so `str()` used their `__str__` (CR/LF or a crash) | `RangeRequest` stores plain `RangeSpec` copies, like every other value class; CHANGELOG updated | `test_a_range_request_stores_plain_specs_and_prints_their_fields` |
+| e G1 | `ContentRange` repr of a huge `complete_length` under a digit limit untested | Test added | `test_every_field_of_a_span_and_a_policy_prints_under_the_digit_limit` |
+| e G2 | `RangePolicy` repr of huge fields under a digit limit untested | Test added | same test |
+| e G3 | `BytePart` copy of a `ContentRange` subclass untested | Test added | `test_a_part_stores_a_plain_content_range` |
+| e G4 | Part copy in `encode_multipart_byteranges` untested | Test added: a part whose `data` changes after construction is refused | `test_encode_rechecks_each_part_as_it_reads_now` |
+| e G5 | Policy copy in `resolve_ranges` untested | Test added: a policy whose `coalesce_gap` turns negative is refused | `test_resolve_rechecks_a_policy_as_it_reads_now` |
+| e G6 | `fold` of an ambiguous local time not pinned | Test added for `when`, `last_modified` and `now` | `test_the_fold_picks_the_reading_of_an_ambiguous_local_time` |
+| e G7 | Microseconds not pinned through the UTC move | Test added | `test_microseconds_count_when_moving_to_utc` |
+| e G8 | `OverflowError` path of the UTC move untested | Test added at both ends of the year range for `when`, `now`, `last_modified` | `test_a_moment_outside_the_utc_years_raises_range_error` |
+| e G9 | A print that fails (not only the flush) untested | Test added with a standard output that fails on write | `test_a_failing_print_gives_exit_1` |
+| e G10 | The `OSError` branch around argument parsing untested (reachable on 3.10) | Test added with a standard output that fails on write | `test_help_into_a_failing_stdout_gives_exit_1` |
+
+Mutation check of this round, one mutant at a time against `test_contract_copies.py`,
+`test_cli_contract.py` and `test_contract_objects.py`, on this PC (CPython 3.13; G10 on
+CPython 3.10.19, where the branch is reachable): G1 to G10 and N1 (specs kept as given)
+are all killed. The F6 and N1 contracts failed on cdf7fa7 before the fix.
+
+Lens a also noted, as not a finding, that `test_every_private_module_example_runs`
+attempts no examples now that the package-level doctest run covers them; it is kept as a
+guard against an example being added to a private module only.
+
+Commit: dba3cf5 (fixes and contracts). Gates at dba3cf5 on the other machine (CPython
+3.14.2, fresh clone and venv): `scripts/check.ps1 -Full` exits 0 (`ruff format --check .`,
+`ruff check .`, `mypy --strict src`, `mypy --strict tests`, then `pytest` with the
+fetched sources, the 0.2.0 oracle, Node.js, werkzeug, aiohttp, curl and both e2e
+switches: 1072 passed, no skip).
+
+### Round 3 (at e95782c): lens e, 6 findings, all fixed
+
+Lens e re-verified its G1 to G10 as fixed (N05, N11, N17, N19, N21, N28, N29, N34 and N37
+killed by the default gate; N36 killed on CPython 3.10.19 and unreachable on 3.14, where
+argparse swallows the error) and reported six surviving probes on the round 2 code. All
+six were gaps in the tests, not wrong behaviour, so no library code and no CHANGELOG
+entry changed. None was disputed.
+
+| Lens / id | Finding | Fix | Contract |
+| --- | --- | --- | --- |
+| e E1 (P09) | No `RangeRequest` spec that has `start` and `end` but is not a `RangeSpec` | Test added with a named tuple of those fields | `test_range_request_refuses_a_spec_lookalike` |
+| e E2 (P10) | The lower-cased unit was only tested through `parse_range_request` | Test constructs `RangeRequest` with `Bytes` and `ITEMS` | `test_range_request_stores_the_unit_lower_cased` |
+| e E3 (P16) | The tuple branch of the plain item copy was not tested with a tuple subclass that overrides `__iter__` | Tuple subclass added next to the list one | `test_subclasses_cannot_steer_a_result` |
+| e E4 (P17) | The 40-character cut of type names in wrong-type errors was untested | Test passes an object whose type name is 5000 characters and asserts the exact message | `test_a_wrong_type_error_cuts_a_huge_type_name` |
+| e E5 (P18) | No `bytearray` subclass with its own `__bytes__` | Subclass added; `data` stays `b"ab"` | `test_subclasses_cannot_steer_a_result` |
+| e E6 (P20) | A plain `bytearray` subclass as part data was untested | Subclass added in the same test | same test |
+
+Mutation check of this round, one mutant at a time against `test_robustness.py` and
+`test_contract_inputs.py` on this PC (CPython 3.13): P09, P10, P16, P17, P18 and P20 are
+all killed.
+
+Commit: d96a277 (contracts). Gates at d96a277 on the other machine (CPython 3.14.2, fresh
+clone and venv): `ruff format --check .`, `ruff check .` and `mypy --strict src` exit 0,
+and `pytest` exits 0 (751 passed, 324 skipped: the optional sources, oracles and e2e
+switches are off in the default run). `mypy --strict tests` is clean on this PC.
+
+### Round 4 (at 31cc7a0): lens e, 5 findings, all fixed
+
+Lens e re-verified E1 to E6 as fixed (P09, P10, P16, P17, P18 and P20 killed) and ran 34
+new probes; 12 survived, grouped into five findings. All five were gaps in the tests, not
+wrong behaviour: on the round 3 code each repro already gives the documented error. No
+library code and no CHANGELOG entry changed. None was disputed.
+
+| Lens / id | Finding | Fix | Contract |
+| --- | --- | --- | --- |
+| e R4-1 (Q27, Q30) | A `RangeDecision` range or `BytePart` content range with the right fields but the wrong type was untested | Named tuples with those fields are refused | `test_range_decision_refuses_a_byte_range_lookalike`, `test_byte_part_refuses_a_content_range_lookalike` |
+| e R4-2 (Q17, Q28) | No test put a wrong item after a valid one | The bad item comes second in both tests | `test_range_request_checks_every_spec_not_only_the_first`, `test_range_decision_checks_every_range_not_only_the_first` |
+| e R4-3 (Q20) | `RangeRequest.other` item types were not pinned | A non-str item raises `MalformedRange`; a str subclass is stored as a plain str | `test_range_request_refuses_a_non_str_other_item`, `test_range_request_stores_other_items_as_plain_str` |
+| e R4-4 (Q21 to Q26) | The 40-character type-name cut was pinned only in `_wrong` | One parametrized test over the eleven entry points that report a type: every message ends in 40 characters of the name and never holds 41 | `test_every_type_error_cuts_a_huge_type_name` |
+| e R4-5 (Q03) | The name in wrong-type messages was not pinned against the qualified name | A class defined inside a function is reported by its plain name | `test_a_type_error_names_the_class_not_its_qualified_name` |
+
+All in `tests/test_contract_item_types.py`. Mutation check of this round, one mutant at a
+time against that file on this PC (CPython 3.13): Q03, Q17, Q20, Q21 to Q28 and Q30 are
+all killed.
+
+Commit: the commit that adds `tests/test_contract_item_types.py`. Gates on that tree on the
+other machine (CPython 3.14.2, fresh venv): `ruff format --check .`, `ruff check .`,
+`mypy --strict src`, `mypy --strict tests` and `pytest` (with `--timeout 300`) all exit 0.
+
+### Round 5 (at bdd6147): lens e, 4 findings, all fixed
+
+Lens e re-verified R4-1 to R4-5 as fixed (Q03, Q17, Q20, Q21 to Q28 and Q30 killed) and
+ran 40 new probes; 20 survived, grouped into four findings. All four were gaps in the
+tests, not wrong behaviour: on the round 4 code each repro already gives the documented
+error. No library code and no CHANGELOG entry changed. None was disputed.
+
+| Lens / id | Finding | Fix | Contract |
+| --- | --- | --- | --- |
+| e R5-1 (N12, N13, N15, N16, N17, N18) | Lookalikes with the right fields were untested at five more type checks (and `format_http_date`, N18, survived too) | A named tuple (or a datetime lookalike) is refused with the documented error and message at each one | `test_a_lookalike_with_the_right_fields_is_refused` |
+| e R5-2 (N10, N11, N21) | Items after the first were unchecked in tests for `resolve_ranges`, `build_multipart_byteranges` and `RangeRequest.other` | The bad item comes second in each test | `test_resolve_ranges_checks_every_item_not_only_the_first`, `test_build_multipart_byteranges_checks_every_item_not_only_the_first`, `test_range_request_checks_every_other_item_not_only_the_first` |
+| e R5-3 (N26 to N29, N31, N32, N35, N36) | Objects faking `__class__` were refused in tests at only two sites | One parametrized test over the ten entry points that check a type: an object whose `__class__` claims the expected class raises a `RangeError` naming its real type | `test_an_object_faking_its_class_is_refused_with_the_documented_error` |
+| e R5-4 (N06, N33, N34) | The type-name cut missed the naive-datetime message, did not tell the head of a name from its tail, and did not cover a raising `__class__` | The huge test name is 39 `X` then `Y`s, and every message must end with the head; a huge-named naive datetime subclass is cut too; a class whose `__class__` raises gets the documented `MalformedRange` | `test_every_type_error_cuts_a_huge_type_name`, `test_a_naive_datetime_error_cuts_a_huge_type_name_keeping_its_head`, `test_a_class_property_that_raises_does_not_escape_a_type_error` |
+
+New tests in `tests/test_contract_spoofs.py`; the cut tests in
+`tests/test_contract_item_types.py`. Mutation check of this round, one mutant at a time
+against those two files on this PC (CPython 3.13): all 20 survivors (N06, N10 to N13,
+N15 to N18, N21, N26 to N29, N31 to N36) are killed, and N34 is killed by the raising
+`__class__` test alone as well.
+
+Commit: the commit that adds `tests/test_contract_spoofs.py`. Gates on that tree on the
+other machine (CPython 3.14.2, fresh venv): `ruff format --check .`, `ruff check .`,
+`mypy --strict src`, `mypy --strict tests` and `pytest` (with `--timeout 300`) all exit 0.
+
+### Round 6 (at 4aa8bbc): lenses a, c and e, 32 findings, all fixed
+
+Lens a (API and docs) reported 4 low findings, lens c (adversarial) 3 low findings and
+lens e (contract strength, 193 mutants of its own) 25 findings: 24 surviving mutants and
+6 more killed only by opt-in tests. Four findings changed library behaviour (a A1, c F1
+to F3); each of those fixes started with a contract in `tests/test_contract_strict.py`
+that failed on 4aa8bbc (10 failing cases: four `last_modified` strings, the CLI typo,
+both lying `overlaps` subclasses, the non-iterator and the three policy limits) and
+passes now. Every behaviour change is in the CHANGELOG and pinned against 0.2.0 in
+`test_upgrade_changes.py` and `test_upgrade_changes_wire.py`. None was disputed.
+
+| Lens / id | Finding | Fix | Contract |
+| --- | --- | --- | --- |
+| a A1 | An invalid `last_modified` string was treated as missing, silently | `if_range_matches` and `evaluate_range_request` raise `MalformedDate` for it, whatever the headers hold; `httprange decide` exits 1. A malformed or weak `etag` still never matches, now said in both docstrings, GUIDE section 5 and the `--etag` help | `test_a_last_modified_that_is_not_an_http_date_raises`, `test_the_cli_refuses_a_last_modified_typo`, `test_a_last_modified_string_that_is_not_a_date_raises`, "malformed validator" in `test_upgrade_changes.py` |
+| a A2, e F25 (N21) | The `resolve_ranges` docstring put the unit check before the list check | The docstring gives the real order: unit and list grammar, then the unit, then the count (before spec syntax), then each spec | `test_resolve_ranges_checks_the_list_before_the_unit` |
+| a A3 | The CHANGELOG named only `evaluate_range_request` for the count-before-syntax and comma changes | The bullet names `resolve_ranges` and its exception types before and after | "count before syntax", "many specs one bad", "many empty elements", "many commas other unit" in `test_upgrade_changes_wire.py` |
+| a A4 | `[0.2.0]` and `[0.1.0]` had no dates | `2026-10-17` (PyPI upload) and `2026-10-12` (commit 3e75ac8, never on PyPI) | none (docs) |
+| c F1 | `ByteRange.overlaps` compared a subclass's fields unchecked | It reads `other` through a checked copy; bad fields raise `RangeError` | `test_overlaps_reads_a_subclass_through_a_checked_copy`, "lying overlap" |
+| c F2 | An `__iter__` returning a non-iterator leaked `TypeError` | A new `iterate` check gives the documented "must be ... iterable" error from `resolve_ranges`, `build_multipart_byteranges` and `encode_multipart_byteranges`; errors from the caller's own iterator still pass through | `test_an_iterable_whose_iter_returns_a_non_iterator_raises_a_typed_error`, `test_an_error_raised_by_the_callers_own_iterator_passes_through`, "non-iterator" |
+| c F3 | `repr(RangePolicy)` was quadratic in unbounded limits | Policy limits take at most 4000 digits, like positions | `test_policy_counts_are_bounded_to_4000_digits`, "wide policy limit" |
+| e F1 (N26) | The `max_ranges` cap on an iterable of specs was unpinned | 101 specs raise; an endless generator is read 4 items for `max_ranges=3` | `test_resolve_ranges_caps_an_iterable_of_specs_while_reading_it` |
+| e F2, F3 (N34, N35) | `last_modified` and `etag` were not pinned as checked up front | Bad validators raise for every header, with `GET` and `HEAD` | `test_validators_are_checked_whatever_the_headers_hold` |
+| e F4 (N38) | Only some bad `on_excessive` values were pinned | Seven near misses, the empty string included | `test_on_excessive_refuses_every_value_but_reject_and_ignore` |
+| e F5 to F7 (N39 to N41) | `RangeDecision` status set, ranges per status and `reason` type | Every status 0 to 999 but 200, 206 and 416; ranges on 200 and 416; four non-str reasons | `test_a_decision_status_is_200_206_or_416_only`, `test_only_a_206_decision_carries_ranges`, `test_a_decision_reason_must_be_a_str` |
+| e F8 to F10 (N18 to N20) | `RangeRequest` field rules and token unit | Specs with other items, specs in another unit, seven non-token units | `test_a_bytes_request_holds_specs_only_and_another_unit_other_items_only`, `test_a_range_request_unit_must_be_a_token` |
+| e F11 (N27) | A str subclass header in `resolve_ranges` | Parsed as a header | `test_resolve_ranges_parses_a_str_subclass_as_a_header` |
+| e F12 (N12) | No int class faker | An object claiming `int` is refused at eight entry points | `test_an_int_class_faker_is_refused_with_the_documented_error` |
+| e F13 (N47) | The 29 February clock in the RFC 850 window | 01-Mar-74 is 1974, 28-Feb-74 is 2074 | `test_rfc_850_years_use_a_29_february_clock_as_the_28th` |
+| e F14 to F17 (N60, N67, N77, N82) | Unit lower-cased before the token check, complete length 0, unsatisfied part in another unit, part field value above U+00FF | One test each | `test_a_content_range_unit_is_checked_before_it_is_lower_cased`, `test_a_range_never_fits_a_complete_length_of_zero`, `test_a_part_needs_a_satisfied_content_range_in_any_unit`, `test_a_part_content_type_refuses_characters_outside_a_field_value` |
+| e F18, F19 (N85, N86) | Content-Type parameter grammar beyond the boundary | Quoted-pairs with controls, empty and broken unquoted values are refused | `test_every_content_type_parameter_follows_the_grammar` |
+| e F20 (N89) | Short messages for huge numbers | Eight entry points with 1500-digit numbers: message under 120 characters, no digit run | `test_an_error_names_a_huge_number_by_its_size` |
+| e F21 (N100) | `decide --method` | `HEAD` gives 200 with its reason | `test_cli_decide_passes_the_method` |
+| e F22 (N74) | `build_multipart_byteranges` checks `content_type` first | `MalformedMultipart` before a bad range or a non-iterable | `test_build_multipart_checks_the_content_type_before_the_ranges` |
+| e F23, F24 (N98, N105) | CLI text and JSON under the 640-digit limit | `parse-content-range`, `resolve --json` and `decide --json` with 4000-digit numbers | `test_cli_text_and_json_print_wide_numbers_under_the_digit_limit` |
+| e F25 (N49, N58, N63, N75, N76) | Five contracts lived only in opt-in tests | Self-contained copies that always run: whitespace around dates, entity-tags and Content-Range values; tabs in part field values; non-token part header names | `test_optional_whitespace_around_whole_values_is_ignored`, `test_part_field_values_drop_spaces_and_tabs_and_names_must_be_tokens` |
+
+The new pins are in `tests/test_contract_pins.py` and `tests/test_contract_pins_wire.py`.
+Mutation check of this round on the other machine (CPython 3.14.2, fresh clone at 32ed5ad,
+one mutant at a time against the three new test files, with lens e's exact replacements;
+N26 re-anchored to the new copy line): all 30 (N12, N18 to N21, N26, N27, N34, N35, N38
+to N41, N47, N49, N58, N60, N63, N67, N74 to N77, N82, N85, N86, N89, N98, N100, N105)
+are killed.
+
+Commits: d9c9058 (behaviour fixes, docs and CHANGELOG), 32ed5ad (pins). Gates at 32ed5ad
+on the other machine (CPython 3.14.2, fresh clone and venv): `ruff format --check .`,
+`ruff check .`, `mypy --strict src`, `mypy --strict tests` and `pytest` (with
+`--timeout 300`) all exit 0 (889 passed, 332 skipped: the opt-in sources, oracles and e2e
+switches are off in the default run). The 0.2.0 differential (`test_upgrade*.py`) passes
+on this PC with `HTTPRANGE_V02` set.
+
+### Round 7 (at da29284): lens e, 5 findings, all fixed
+
+No behaviour changed in this round: every finding was a missing contract. The only
+source edit is one sentence in the `resolve_ranges` docstring that states the refusal
+pinned for N5.
+
+| Finding | What was missing | Fix | Pinning test |
+|---|---|---|---|
+| e N1 (S03) | `ByteRange.overlaps` on a shared edge byte in the reverse order and for two equal one-byte ranges | Symmetry pinned on touching, nested, equal and disjoint pairs, both orders | `test_overlaps_is_symmetric_and_counts_a_shared_edge_byte` |
+| e N2 (S12) | A short message for a huge malformed `last_modified` (item 5) | A one-million-character value through `if_range_matches` and both `evaluate_range_request` paths gives a message of at most 120 characters | `test_a_huge_malformed_last_modified_gives_a_short_message` |
+| e N3 (S27) | `decide --etag` | An entity-tag If-Range that matches `--etag` gives 206, one that differs gives 200 | `test_cli_decide_passes_the_etag` |
+| e N4 (S24) | Text refused as the list for the empty string and a str subclass | `""`, `"ab"` and a str subclass refused by both multipart builders with the exact class and message | `test_text_is_refused_as_the_ranges_of_build_multipart`, `test_text_is_refused_as_the_parts_of_encode_multipart` |
+| e N5 (S25) | An object iterable only through `__getitem__` | Kept the refusal (`MalformedRange`, the documented message), pinned it and documented it in the `resolve_ranges` docstring | `test_resolve_ranges_refuses_an_object_iterable_only_by_index` |
+
+The pins are in `tests/test_contract_pins_inputs.py`. Mutation check of this round (one
+mutant at a time in a scratch copy, lens e's replacements, against the new test file):
+S03, S12, S24, S25 and S27 are all killed.
+
+Commit: 14c519b (pins and the docstring sentence). Gates at 14c519b on the other machine
+(CPython 3.14.2, fresh clone from GitHub and fresh venv): `ruff format --check .`,
+`ruff check .`, `mypy --strict src`, `mypy --strict tests` and `pytest` (with
+`--timeout 300`) all exit 0.
+
+### Round 8 (at 8948fb7): lens e, 4 findings, all fixed
+
+Lens e confirmed the round 7 pins (N1 to N5) kill their mutants, then ran a fresh
+mutation sweep (Q01 to Q10): Q01 to Q05 and Q10 were killed, Q06 to Q09 survived. No
+behaviour changed in this round and no source file was edited: every finding was a
+missing contract on a refusal the code already made.
+
+| Finding | What was missing | Fix | Pinning test |
+|---|---|---|---|
+| e Q06 | `bytes` and `bytearray` refused as the ranges or parts list of the multipart builders | `b""`, `b"ab"`, `bytearray()` and `bytearray(b"a")` refused by both builders with the exact class and message | `test_text_is_refused_as_the_ranges_of_build_multipart`, `test_text_is_refused_as_the_parts_of_encode_multipart` |
+| e Q07 | `memoryview` refused as the ranges or parts list | `memoryview(b"")` and `memoryview(b"x")` added to the same two tests | same two tests |
+| e Q08 | An object iterable only through `__getitem__` refused by the multipart builders (the multipart twin of N5) | Refusal pinned for `build_multipart_byteranges` (`RangeError`) and `encode_multipart_byteranges` (`MalformedMultipart`) with the exact message | `test_multipart_builders_refuse_an_object_iterable_only_by_index` |
+| e Q09 | `resolve_ranges` refusing bytes-like input as the ranges | `b""`, `b"ab"`, `bytearray`, `memoryview` refused with `MalformedRange` and "ranges must be a str or RangeSpec items, got <type>" | `test_resolve_ranges_refuses_bytes_as_the_ranges` |
+
+The pins are in `tests/test_contract_pins_inputs.py`. Mutation check of this round (one
+mutant at a time, lens e's replacements, against the new test file, source restored after
+each): Q06 (drop `bytes` from the refusal tuple in `_multipart._items_of`), Q07 (drop
+`memoryview` there), Q08 (drop the `Iterable` gate there) and Q09 (drop `bytes` from the
+refusal tuple in `_resolve._specs`) are all killed.
+
+Commit: 3c6f7e6 (pins). Gates at 3c6f7e6 on the other machine (CPython 3.14.2, fresh
+clone from GitHub and fresh venv): `ruff format --check .`, `ruff check .`,
+`mypy --strict src`, `mypy --strict tests` and `pytest` (with `--timeout 300`) all exit 0.
+
+### Round 9 (at 9862f7b): lens e, 1 finding, fixed
+
+Lens e confirmed the round 8 pins (Q06 to Q09) kill their mutants and ran a fresh sweep
+(S01 to S10): every mutant but S07 was killed. No behaviour changed in this round and no
+source file was edited: the finding was a missing contract on a refusal the code already
+made.
+
+| Finding | What was missing | Fix | Pinning test |
+|---|---|---|---|
+| e S07 | `resolve_ranges` refusing subclasses of `bytes` and `bytearray` as the ranges (only exact classes were pinned) | Added `_Bytes(b"")`, `_Bytes(b"ab")`, `_ByteArray(b"a")` and `_SpecBytes(b"x")`, a `bytes` subclass whose `__iter__` yields `RangeSpec(0, 1)`, each refused with `MalformedRange` and "ranges must be a str or RangeSpec items, got <name>" | `test_resolve_ranges_refuses_bytes_as_the_ranges` |
+
+Mutation check of this round: with the refusal in `_resolve._specs` changed to
+`type(ranges) in (bytes, bytearray, memoryview)`, the four new cases fail (the
+`_SpecBytes` case resolves to `(ByteRange(first=0, last=1),)` instead of raising); with the
+source restored they pass.
+
+Commit: 9f23917 (pins). Gates at 9f23917 on the other machine (CPython 3.14.2, fresh
+clone from GitHub and fresh venv): `ruff format --check .`, `ruff check .`,
+`mypy --strict src`, `mypy --strict tests` and `pytest` (with `--timeout 300`, 931 passed,
+332 skipped) all exit 0.
+
+### Round 10 (at 2ae4599): lens e, 1 finding, fixed
+
+Lens e confirmed the round 9 pin kills its mutant (R07, the exact-type bytes gate in
+`_resolve._specs`) and ran a fresh sweep (S01 to S10) on `_resolve._specs` and
+`_multipart._items_of`: every mutant but S06 was killed. No behaviour changed in this round
+and no source file was edited: the finding was a missing default-suite contract on a
+refusal the code already made (it was asserted only by the opt-in 0.2.0 comparison).
+
+| Finding | What was missing | Fix | Pinning test |
+|---|---|---|---|
+| e S06 | `resolve_ranges` refusing an empty spec iterable with `MalformedRange` ("no range specs to resolve"); with the check removed the empty input fell through to `UnsatisfiableRange` and only `test_upgrade_changes_wire.py` (skipped without the 0.2.0 oracle) noticed | Added `[]`, `()`, `iter([])` and an empty generator, each with lengths 10 and 0, each raising exactly `MalformedRange` (not a subclass) with "no range specs to resolve" | `test_resolve_ranges_refuses_no_specs_as_malformed` |
+
+Mutation check of this round: with `if not specs:` in `_resolve._specs` changed to
+`if False:`, all 8 new cases fail (8 failed, 42 passed in `test_contract_pins_inputs.py`);
+with the source restored they pass.
+
+Commit: 3312f46 (pin). Gates at 3312f46 on the laptop (CPython 3.14, fresh clone from
+GitHub and fresh venv): `ruff format --check .`, `ruff check .`, `mypy --strict src`,
+`mypy --strict tests` and `pytest` (with `--timeout 300`, 939 passed, 332 skipped) all
+exit 0. The first full run there had one setup error in `test_e2e_cli.py` (a
+`FileNotFoundError` while the module fixture built the wheel); the file alone and two
+further full runs on the same clone were green, so it is recorded as a transient of that
+machine, not hidden.
+
+### Disputed findings
+
+None in round 1. None in round 2. None in round 3. None in round 4. None in round 5.
+None in round 6. None in round 7. None in round 8. None in round 9. None in round 10.
+
+## Final verdicts
+
+### QA lenses (item 19)
+
+Each lens ran in its own private working folder on the maintainer's machines; the report
+paths below are relative to that folder and are not part of the repository.
+
+| Lens | Rounds | Final verdict | Report | Commit |
+| --- | --- | --- | --- | --- |
+| a. API and docs | 2 | PASS | `httprange-cert/lens-a-r2/REPORT.md` | da29284 |
+| b. Correctness and ground truth | 1 | PASS | summary below (no separate report file) | 4aa8bbc |
+| c. Adversarial and robustness | 2 | PASS | `httprange-cert/lens-c-r2/probes2/sweep-3.13.out` | da29284 |
+| d. Packaging and real e2e | 1 | PASS | `httprange-cert/lens-d-r1/REPORT.md` | 4aa8bbc |
+| e. Contract strength | 6 | PASS | `httprange-cert/lens-e-r6/mutation-run.log` | 0e51b47 |
+
+Lens b, final pass at 4aa8bbc, with sources fetched live on 2026-10-19 (RFC 9110 text,
+RFC 2046 text, erratum 7306 and the full RFC 9110 errata list, each recorded by sha256):
+
+- `parse_range_request` against an oracle compiled from the Appendix A grammar with
+  erratum 7306 and the 5.6.1.2 list form: about 188,000 headers and every RFC example.
+- `resolve_ranges` against the 14.1.2 rules, a brute-force model of overlap depth and
+  coalescing at gaps 0, 1, 3 and 7 keeping request order, and range-parser 1.2.1 on
+  Node.js: 20,000 cases, 12,200 of them through Node.js.
+- `Content-Range` parse and build, `Accept-Ranges`, the three HTTP-date formats and the
+  fifty-year boundary, `format_http_date`, and If-Range with the rows of RFC 9110
+  Table 3: about 30,000 cases each.
+- The .NET 9 `System.Net.Http` and `Microsoft.Net.Http.Headers` parsers gave the same
+  values whenever both sides accepted an input.
+- `evaluate_range_request` against a decision function written from RFC 9110 13.1.5,
+  14.2, 15.3.7 and 15.5.17: 37,500 cases. Against a live Kestrel server (3,000 requests)
+  every difference was a place where ASP.NET departs from the RFC and the library follows
+  it (date If-Range compared with `<=`, unknown units served, a trailing comma read as
+  several ranges, overflow on a 20-digit position).
+- `multipart/byteranges` bodies built by the library parse with the standard `email`
+  parser; the 15.3.7.2 example and the RFC 2046 edge cases (preamble, padding, quoted
+  and `bchars` boundaries, epilogue) pass.
+- Single-range and multipart 206 replies from live nginx and Cloudflare servers, and 416
+  replies from other live servers (13 URLs), parsed and compared byte for byte with the
+  full downloads; every decision matched nginx.
+- The 0.1 API, the CLI examples and the large-numeral cases are correct.
+
+No mismatch. Five documented behaviours were noted and are not findings: the RFC 14.6
+`exampleunit 1.2-4.3` example is refused because it contradicts the 14.4 grammar (no
+erratum exists); the day name of a date is not checked; If-Range dates are compared as
+instants; positions longer than 4000 digits raise a typed error; the 0.1 API raises on an
+empty body.
+
+### Independent review (item 16)
+
+Round 1 at 0e51b47, from a fresh clone on another machine: the full suite with the
+fetched sources, the 0.2.0 oracle, Node.js, werkzeug, aiohttp and both e2e switches
+(`pytest` exit 0), the interpreter matrix, `python -m build` and `twine check --strict`
+(both artifacts PASSED), a consumer run from the installed wheel, and its own mutants.
+
+| # | Item | Verdict |
+| --- | --- | --- |
+| 1 | Public API reviewed for stability | PASS |
+| 2 | `__all__` exact, no private imports in docs | PASS |
+| 3 | Docstrings with runnable examples, doctests pass | PASS |
+| 4 | Typed end to end | PASS |
+| 5 | Typed, documented, bounded errors | PASS |
+| 6 | Contract tests of every public name | PASS |
+| 7 | Real ground truth | PASS |
+| 8 | Real e2e from the wheel, upgrade from PyPI | PASS |
+| 9 | Seeded fuzz, no crash, hang or blowup | PASS |
+| 10 | Supported Pythons | PASS |
+| 11 | README and `twine check` | PASS |
+| 12 | Dated CHANGELOG section | PASS |
+| 13 | pyproject 1.0.0, Production/Stable | PASS |
+| 14 | sdist and wheel contents | PASS |
+| 15 | Gates each exit 0 | PASS |
+| 16 | Independent review | PASS |
+| 17 | PR from `release/1.0.0`; merge and publish left to the maintainer | PASS |
+| 18 | Contracts bite (mutations) | PASS |
+| 19 | Five independent QA lenses | PASS |
+
+### Final gates (at 299ee56)
+
+On another machine, from a fresh clone of `release/1.0.0` from GitHub, CPython 3.14.2:
+`ruff format --check .`, `ruff check .`, `mypy --strict src` and `pytest` (with
+`--timeout 300`) each exit 0; `python -m build` builds `httprange-1.0.0.tar.gz` and
+`httprange-1.0.0-py3-none-any.whl`, and `twine check --strict` passes both. The wheel,
+installed in a throwaway venv, imports from its `site-packages` as 1.0.0, and the test
+suite run against it from a copy of the tree without `src` gives 931 passed, 332 skipped
+(the opt-in sources, oracles and e2e switches are off); `test_e2e_cli.py` builds its own
+wheel from the source tree, so it runs in the clone's `pytest` gate instead.

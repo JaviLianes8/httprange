@@ -50,9 +50,10 @@ def test_generated_boundary_never_occurs_in_the_data() -> None:
     assert body.body.count(b"--" + body.boundary.encode()) == 2
 
 
-def test_rejects_a_given_boundary_found_in_a_part() -> None:
-    with pytest.raises(MalformedMultipart):
-        build_multipart_byteranges(b"x--abc", [ByteRange(0, 5)], boundary="abc")
+@pytest.mark.parametrize("data", [b"--abcxx", b"x--abcx", b"xx--abc"])
+def test_rejects_a_given_boundary_found_in_a_part(data: bytes) -> None:
+    with pytest.raises(MalformedMultipart, match="boundary occurs"):
+        build_multipart_byteranges(data, [ByteRange(0, 6)], boundary="abc")
 
 
 @pytest.mark.parametrize("boundary", ["", "a" * 71, "has space", 'q"uote', "semi;colon"])
@@ -149,13 +150,16 @@ def test_accepts_any_rfc_2046_boundary_character() -> None:
     assert parts[0].data == b"z"
 
 
-def test_encoder_refuses_parts_its_parser_would_reject() -> None:
-    unsatisfied = BytePart(ContentRange("bytes", None, None, 5), b"")
-    short = BytePart(ContentRange("bytes", 0, 9, 50), b"abc")
-    control = BytePart(ContentRange("bytes", 0, 0, 1), b"a", "text/plain\x01")
-    for part in (unsatisfied, short, control):
+def test_parts_its_parser_would_reject_cannot_be_built() -> None:
+    cases = [
+        (ContentRange("bytes", None, None, 5), b"", None),
+        (ContentRange("bytes", 0, 9, 50), b"abc", None),
+        (ContentRange("bytes", 0, 0, 1), b"a", "text/plain\x01"),
+        (ContentRange("bytes", 0, 0, 1), b"a", " text/plain"),
+    ]
+    for span, data, content_type in cases:
         with pytest.raises(MalformedMultipart):
-            encode_multipart_byteranges([part])
+            BytePart(span, data, content_type)
 
 
 @pytest.mark.parametrize(

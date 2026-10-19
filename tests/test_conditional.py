@@ -90,7 +90,11 @@ def test_weak_dates_and_malformed_dates_never_match() -> None:
     header = "Sun, 06 Nov 1994 08:49:37 GMT"
     assert not if_range_matches(header, last_modified=INSTANT, date_is_strong=False)
     assert not if_range_matches("yesterday", last_modified=INSTANT)
-    assert not if_range_matches(header, last_modified="not a date")
+
+
+def test_a_last_modified_string_that_is_not_a_date_raises() -> None:
+    with pytest.raises(MalformedDate, match="last_modified is not an HTTP-date"):
+        if_range_matches("Sun, 06 Nov 1994 08:49:37 GMT", last_modified="not a date")
 
 
 def test_seconds_past_sixty_are_rejected() -> None:

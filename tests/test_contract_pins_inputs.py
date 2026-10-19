@@ -1,0 +1,191 @@
+"""Pins for input edges: overlaps on a shared edge byte in either order, short messages
+for a huge malformed last_modified, text and bytes refused as a list of ranges or parts,
+objects iterable only by index, no specs at all, and the decide --etag option. Each runs
+in the default gate."""
+
+from __future__ import annotations
+
+from collections.abc import Callable, Iterator
+
+import pytest
+
+import httprange as hr
+from httprange._cli import main
+
+HUGE = "x" * 1_000_000
+
+
+class _Text(str):
+    pass
+
+
+class _Bytes(bytes):
+    pass
+
+
+class _ByteArray(bytearray):
+    pass
+
+
+class _SpecBytes(bytes):
+    """Bytes whose iteration yields range specs, so only the type check can refuse it."""
+
+    def __iter__(self) -> Iterator[hr.RangeSpec]:  # type: ignore[override]
+        return iter([hr.RangeSpec(0, 1)])
+
+
+class _ByIndex:
+    """Iterable only through the old ``__getitem__`` protocol, with no ``__iter__``."""
+
+    def __getitem__(self, index: int) -> hr.RangeSpec:
+        if index < 2:
+            return hr.RangeSpec(index, index)
+        raise IndexError(index)
+
+
+class _OneByIndex:
+    """Holds one item reachable only through ``__getitem__``."""
+
+    def __init__(self, item: object) -> None:
+        self.item = item
+
+    def __getitem__(self, index: int) -> object:
+        if index == 0:
+            return self.item
+        raise IndexError(index)
+
+
+NOT_A_LIST = [
+    "",
+    "ab",
+    _Text(""),
+    _Text("x"),
+    b"",
+    b"ab",
+    bytearray(),
+    bytearray(b"a"),
+    memoryview(b""),
+    memoryview(b"x"),
+]
+BYTES_LIKE = [
+    b"",
+    b"ab",
+    bytearray(),
+    bytearray(b"a"),
+    memoryview(b""),
+    memoryview(b"a"),
+    _Bytes(b""),
+    _Bytes(b"ab"),
+    _ByteArray(b"a"),
+    _SpecBytes(b"x"),
+]
+
+
+@pytest.mark.parametrize(
+    ("a", "b", "expected"),
+    [
+        ((0, 9), (9, 20), True),
+        ((5, 5), (5, 5), True),
+        ((0, 0), (0, 5), True),
+        ((3, 7), (0, 3), True),
+        ((0, 8), (9, 20), False),
+        ((4, 4), (5, 5), False),
+    ],
+)
+def test_overlaps_is_symmetric_and_counts_a_shared_edge_byte(
+    a: tuple[int, int], b: tuple[int, int], expected: bool
+) -> None:
+    left, right = hr.ByteRange(*a), hr.ByteRange(*b)
+    assert left.overlaps(right) is expected
+    assert right.overlaps(left) is expected
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        lambda: hr.if_range_matches('"a"', etag='"a"', last_modified=HUGE),
+        lambda: hr.evaluate_range_request(
+            method="GET", range_header=None, length=1, last_modified=HUGE
+        ),
+        lambda: hr.evaluate_range_request(
+            method="GET", range_header="bytes=0-0", length=1, last_modified=HUGE
+        ),
+    ],
+)
+def test_a_huge_malformed_last_modified_gives_a_short_message(call: Callable[[], object]) -> None:
+    with pytest.raises(hr.MalformedDate) as caught:
+        call()
+    message = str(caught.value)
+    assert message.startswith("last_modified is not an HTTP-date: 'xxx")
+    assert len(message) <= 120
+
+
+@pytest.mark.parametrize("text", NOT_A_LIST)
+def test_text_is_refused_as_the_ranges_of_build_multipart(text: object) -> None:
+    with pytest.raises(hr.RangeError) as caught:
+        hr.build_multipart_byteranges(b"abc", text)  # type: ignore[arg-type]
+    assert type(caught.value) is hr.RangeError
+    name = type(text).__name__
+    assert str(caught.value) == f"ranges must be an iterable of ByteRange, got {name}"
+
+
+@pytest.mark.parametrize("text", NOT_A_LIST)
+def test_text_is_refused_as_the_parts_of_encode_multipart(text: object) -> None:
+    with pytest.raises(hr.MalformedMultipart) as caught:
+        hr.encode_multipart_byteranges(text)  # type: ignore[arg-type]
+    name = type(text).__name__
+    assert str(caught.value) == f"parts must be an iterable of BytePart, got {name}"
+
+
+@pytest.mark.parametrize("data", BYTES_LIKE)
+def test_resolve_ranges_refuses_bytes_as_the_ranges(data: object) -> None:
+    with pytest.raises(hr.MalformedRange) as caught:
+        hr.resolve_ranges(data, 10)  # type: ignore[arg-type]
+    name = type(data).__name__
+    assert str(caught.value) == f"ranges must be a str or RangeSpec items, got {name}"
+
+
+def test_multipart_builders_refuse_an_object_iterable_only_by_index() -> None:
+    ranges = _OneByIndex(hr.ByteRange(0, 1))
+    with pytest.raises(hr.RangeError) as caught:
+        hr.build_multipart_byteranges(b"abc", ranges)  # type: ignore[arg-type]
+    assert type(caught.value) is hr.RangeError
+    assert str(caught.value) == "ranges must be an iterable of ByteRange, got _OneByIndex"
+    part = hr.BytePart(hr.ContentRange("bytes", 0, 1, 3), b"ab")
+    with pytest.raises(hr.MalformedMultipart) as refused:
+        hr.encode_multipart_byteranges(_OneByIndex(part))  # type: ignore[arg-type]
+    assert str(refused.value) == "parts must be an iterable of BytePart, got _OneByIndex"
+    assert hr.encode_multipart_byteranges([part], boundary="b").boundary == "b"
+
+
+def test_resolve_ranges_refuses_an_object_iterable_only_by_index() -> None:
+    with pytest.raises(hr.MalformedRange) as caught:
+        hr.resolve_ranges(_ByIndex(), 10)  # type: ignore[arg-type]
+    assert str(caught.value) == "ranges must be a str or RangeSpec items, got _ByIndex"
+    specs = list(iter(_ByIndex()))
+    assert hr.resolve_ranges(specs, 10) == (hr.ByteRange(0, 1),)
+
+
+def _no_specs() -> Iterator[hr.RangeSpec]:
+    yield from ()
+
+
+@pytest.mark.parametrize("length", [10, 0])
+@pytest.mark.parametrize("empty", [list, tuple, lambda: iter([]), _no_specs])
+def test_resolve_ranges_refuses_no_specs_as_malformed(
+    empty: Callable[[], object], length: int
+) -> None:
+    with pytest.raises(hr.MalformedRange) as caught:
+        hr.resolve_ranges(empty(), length)  # type: ignore[arg-type]
+    assert type(caught.value) is hr.MalformedRange
+    assert str(caught.value) == "no range specs to resolve"
+
+
+def test_cli_decide_passes_the_etag(capsys: pytest.CaptureFixture[str]) -> None:
+    args = ["decide", "--range", "bytes=0-1", "--length", "10", "--if-range", '"v1"']
+    assert main([*args, "--etag", '"v1"']) == 0
+    out, err = capsys.readouterr()
+    assert (out.splitlines()[0], err) == ("status: 206", "")
+    assert main([*args, "--etag", '"v2"']) == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert lines == ["status: 200", "reason: If-Range does not match"]

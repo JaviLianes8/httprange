@@ -170,7 +170,7 @@ def test_public_dataclasses_are_frozen() -> None:
     samples: list[object] = [
         hr.ByteRange(0, 0),
         hr.RangePolicy(),
-        hr.RangeRequest("bytes"),
+        hr.RangeRequest("bytes", (hr.RangeSpec(0, 0),)),
         hr.RangeSpec(0, 1),
         hr.ContentRange("bytes", None, None, 1),
         hr.RangeDecision(200, (), 1, "x"),
@@ -187,7 +187,7 @@ def test_version_is_a_three_part_string() -> None:
     parts = hr.__version__.split(".")
     assert len(parts) == 3
     assert all(part.isdigit() for part in parts)
-    assert hr.__version__ == "0.2.0"
+    assert hr.__version__ == "1.0.0"
 
 
 def test_the_package_ships_type_information() -> None:

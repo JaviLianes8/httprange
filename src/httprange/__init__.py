@@ -1,10 +1,9 @@
 """Parse and build HTTP Range and Content-Range headers (RFC 9110 section 14)."""
 
-from __future__ import annotations
-
 from ._byterange import ByteRange
-from ._conditional import format_http_date, if_range_matches, parse_http_date
+from ._conditional import if_range_matches
 from ._content_range import ContentRange, build_content_range, parse_content_range
+from ._dates import format_http_date, parse_http_date
 from ._decision import RangeDecision, evaluate_range_request
 from ._errors import (
     ExcessiveRanges,
@@ -18,16 +17,15 @@ from ._errors import (
 )
 from ._grammar import RangeRequest, parse_accept_ranges, parse_range_request
 from ._multipart import (
-    BytePart,
-    MultipartBody,
     build_multipart_byteranges,
     encode_multipart_byteranges,
     parse_multipart_byteranges,
 )
+from ._parts import BytePart, MultipartBody
 from ._resolve import RangePolicy, resolve_ranges
 from ._spec import RangeSpec, parse_range, resolve
 
-__version__ = "0.2.0"
+__version__ = "1.0.0"
 
 __all__ = [
     "BytePart",
@@ -61,3 +59,15 @@ __all__ = [
     "resolve",
     "resolve_ranges",
 ]
+
+# The public names show and pickle as httprange.<name>, so a pickle never depends on the
+# private module that defines them, and doctest.testmod(httprange) finds every example.
+_member = None
+for _name in __all__:
+    _obj = globals()[_name]
+    _obj.__module__ = __name__
+    # Methods follow, so doctest finds their examples here (it takes properties anyway).
+    for _member in vars(_obj).values() if isinstance(_obj, type) else ():
+        if callable(_member) and str(getattr(_member, "__module__", "")).startswith("httprange._"):
+            _member.__module__ = __name__
+del _name, _obj, _member

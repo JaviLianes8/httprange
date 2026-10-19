@@ -3,16 +3,18 @@
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from collections.abc import Sequence
 from typing import NoReturn
 
 from . import __version__
+from ._checks import short
+from ._cli_io import cut, emit, flush_stdout, to_json
 from ._content_range import build_content_range, parse_content_range
 from ._decision import evaluate_range_request
 from ._errors import RangeError
 from ._grammar import parse_range_request
+from ._numbers import to_int
 from ._resolve import RangePolicy, resolve_ranges
 
 EXAMPLES = """\
@@ -35,13 +37,16 @@ class _Parser(argparse.ArgumentParser):
 
     def error(self, message: str) -> NoReturn:
         self.print_usage(sys.stderr)
-        self.exit(1, f"{self.prog}: error: {message}\n")
+        self.exit(1, f"{self.prog}: error: {cut(message)}\n")
 
 
 def _length(text: str) -> int:
-    if not text.isascii() or not text.isdigit():
-        raise argparse.ArgumentTypeError(f"expected a non-negative integer, got {text!r}")
-    return int(text)
+    try:
+        return to_int(text, ValueError, text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"expected a non-negative integer of at most 4000 digits, got {short(text)}"
+        ) from None
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -76,38 +81,37 @@ def build_parser() -> argparse.ArgumentParser:
     dec.add_argument("--length", type=_length, required=True, help="representation length")
     dec.add_argument("--method", default="GET", help="request method (default GET)")
     dec.add_argument("--if-range", help="the If-Range header value")
-    dec.add_argument("--etag", help="the current ETag of the representation")
-    dec.add_argument("--last-modified", help="the current Last-Modified HTTP-date")
+    dec.add_argument("--etag", help="the current ETag (a weak or malformed one never matches)")
+    dec.add_argument("--last-modified", help="the current Last-Modified (must be an HTTP-date)")
     dec.add_argument("--json", action="store_true", help="print a JSON object")
     return parser
 
 
-def _emit(data: dict[str, object], lines: list[str], as_json: bool) -> None:
-    print(json.dumps(data) if as_json else "\n".join(lines))
+def _output(data: dict[str, object], lines: list[str], as_json: bool) -> str:
+    return to_json(data) if as_json else "\n".join(lines)
 
 
-def _run(args: argparse.Namespace) -> None:
+def _run(args: argparse.Namespace) -> str:
     if args.command == "parse":
         request = parse_range_request(args.header)
         items = [str(spec) for spec in request.specs] or list(request.other)
         data: dict[str, object] = {"unit": request.unit, "ranges": items}
-        _emit(data, [f"unit: {request.unit}", *items], args.json)
-    elif args.command == "resolve":
+        return _output(data, [f"unit: {request.unit}", *items], args.json)
+    if args.command == "resolve":
         policy = RangePolicy(max_ranges=args.max_ranges, coalesce=not args.no_coalesce)
         ranges = resolve_ranges(args.header, args.length, policy=policy)
         values = [item.content_range(args.length) for item in ranges]
         data = {"ranges": [[item.first, item.last] for item in ranges], "content_range": values}
-        _emit(data, values, args.json)
-    elif args.command == "content-range":
+        return _output(data, values, args.json)
+    if args.command == "content-range":
         if args.unsatisfied:
             if args.first is not None:
                 raise RangeError("--unsatisfied takes no offsets")
-            print(build_content_range(None, None, args.length))
-        elif args.first is None or args.last is None:
+            return build_content_range(None, None, args.length)
+        if args.first is None or args.last is None:
             raise RangeError("give FIRST and LAST, or --unsatisfied")
-        else:
-            print(build_content_range(args.first, args.last, args.length))
-    elif args.command == "parse-content-range":
+        return build_content_range(args.first, args.last, args.length)
+    if args.command == "parse-content-range":
         span = parse_content_range(args.value)
         data = {
             "unit": span.unit,
@@ -116,13 +120,16 @@ def _run(args: argparse.Namespace) -> None:
             "complete_length": span.complete_length,
             "satisfied": span.is_satisfied,
         }
-        lines = [f"{key}: {'*' if value is None else value}" for key, value in data.items()]
-        _emit(data, lines, args.json)
-    else:
-        _decide(args)
+        lines = [f"{key}: {'*' if value is None else _text(value)}" for key, value in data.items()]
+        return _output(data, lines, args.json)
+    return _decide(args)
 
 
-def _decide(args: argparse.Namespace) -> None:
+def _text(value: object) -> str:
+    return to_json(value) if type(value) is int else str(value)
+
+
+def _decide(args: argparse.Namespace) -> str:
     decision = evaluate_range_request(
         method=args.method,
         range_header=args.range_header,
@@ -142,22 +149,36 @@ def _decide(args: argparse.Namespace) -> None:
     if decision.content_range is not None:
         lines.append(f"content-range: {decision.content_range}")
     lines.extend(f"range: {item}" for item in decision.ranges if decision.is_multipart)
-    _emit(data, lines, args.json)
+    return _output(data, lines, args.json)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Run the command line tool and return its exit status."""
+    """Run the command line tool and return its exit status.
+
+    0 on success; 1 for an error (printed on standard error) or when the reader of
+    standard output has gone away. ``--help`` and ``--version`` raise ``SystemExit``
+    with 0, or with 1 when that reader has gone away.
+    """
     for stream in (sys.stdout, sys.stderr):
         # Echoed input may hold characters the console encoding cannot print.
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(errors="backslashreplace")
-    args = build_parser().parse_args(argv)
     try:
-        _run(args)
+        args = build_parser().parse_args(argv)
+    except SystemExit:
+        # --help, --version and usage errors end here; their text is still buffered.
+        if not flush_stdout():
+            raise SystemExit(1) from None
+        raise
+    except OSError:
+        flush_stdout()
+        raise SystemExit(1) from None
+    try:
+        text = _run(args)
     except RangeError as exc:
-        print(f"httprange: error: {exc}", file=sys.stderr)
+        print(f"httprange: error: {cut(str(exc))}", file=sys.stderr)
         return 1
-    return 0
+    return 0 if emit(text) else 1
 
 
 if __name__ == "__main__":
