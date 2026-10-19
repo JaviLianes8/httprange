@@ -50,9 +50,10 @@ def test_generated_boundary_never_occurs_in_the_data() -> None:
     assert body.body.count(b"--" + body.boundary.encode()) == 2
 
 
-def test_rejects_a_given_boundary_found_in_a_part() -> None:
-    with pytest.raises(MalformedMultipart):
-        build_multipart_byteranges(b"x--abc", [ByteRange(0, 5)], boundary="abc")
+@pytest.mark.parametrize("data", [b"--abcxx", b"x--abcx", b"xx--abc"])
+def test_rejects_a_given_boundary_found_in_a_part(data: bytes) -> None:
+    with pytest.raises(MalformedMultipart, match="boundary occurs"):
+        build_multipart_byteranges(data, [ByteRange(0, 6)], boundary="abc")
 
 
 @pytest.mark.parametrize("boundary", ["", "a" * 71, "has space", 'q"uote', "semi;colon"])
