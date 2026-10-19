@@ -78,6 +78,20 @@ class LyingList(list):  # type: ignore[type-arg]
         return iter([])
 
 
+class LyingTuple(tuple):  # type: ignore[type-arg]
+    def __iter__(self) -> Iterator[object]:
+        return iter([hr.RangeSpec(5, 6)])
+
+
+class LyingByteArray(bytearray):
+    def __bytes__(self) -> bytes:
+        return b"evil!"
+
+
+class PlainByteArray(bytearray):
+    pass
+
+
 def test_subclasses_cannot_steer_a_result() -> None:
     assert hr.parse_range_request(LyingStr("bytes=5-9")).specs == (hr.RangeSpec(5, 9),)
     assert hr.parse_content_range(LyingStr("items 1-2/3")).unit == "items"
@@ -90,6 +104,11 @@ def test_subclasses_cannot_steer_a_result() -> None:
     assert hr.RangeRequest("bytes", lying).specs == (hr.RangeSpec(0, 0),)
     part = hr.BytePart(hr.ContentRange("bytes", 0, 1, 2), LyingBytes(b"ab"))
     assert type(part.data) is bytes and part.data == b"ab"
+    assert str(hr.RangeRequest("bytes", LyingTuple((hr.RangeSpec(0, 1),)))) == "bytes=0-1"
+    span = hr.ContentRange("bytes", 0, 1, 5)
+    for data in (LyingByteArray(b"ab"), PlainByteArray(b"ab")):
+        part = hr.BytePart(span, data)
+        assert type(part.data) is bytes and part.data == b"ab"
 
 
 def test_a_released_memoryview_is_refused() -> None:

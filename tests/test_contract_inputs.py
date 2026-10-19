@@ -7,6 +7,7 @@ uses an input type its docstring documents, so a narrower annotation fails the g
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import NamedTuple
 
 import pytest
 
@@ -85,3 +86,25 @@ def test_legacy_resolve_refuses_every_spec_on_an_empty_representation() -> None:
     assert info.value.length == 0
     assert hr.resolve_ranges("bytes=-5", 0) == ()
     assert "On an empty representation" in " ".join((hr.resolve.__doc__ or "").split())
+
+
+def test_range_request_stores_the_unit_lower_cased() -> None:
+    assert hr.RangeRequest("Bytes", (hr.RangeSpec(0, 1),)).unit == "bytes"
+    assert hr.RangeRequest("ITEMS", (), ("1",)).unit == "items"
+
+
+class Lookalike(NamedTuple):
+    start: int
+    end: int
+
+
+def test_range_request_refuses_a_spec_lookalike() -> None:
+    with pytest.raises(hr.MalformedRange, match="specs must hold RangeSpec items, got Lookalike"):
+        hr.RangeRequest("bytes", [Lookalike(0, 1)])  # type: ignore[list-item]
+
+
+def test_a_wrong_type_error_cuts_a_huge_type_name() -> None:
+    huge = type("X" * 5000, (), {})()
+    with pytest.raises(hr.MalformedRange) as info:
+        hr.RangeRequest("bytes", huge)
+    assert str(info.value) == "specs must be a tuple or list, got " + "X" * 40
