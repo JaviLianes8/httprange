@@ -79,7 +79,8 @@ def resolve_ranges(
     :class:`UnsupportedRangeUnit`; more than ``policy.max_ranges`` specs raise
     :class:`ExcessiveRanges`, even when a later spec is invalid; an invalid spec raises
     :class:`MalformedRange`. An iterable of specs is read only up to
-    ``policy.max_ranges + 1`` items.
+    ``policy.max_ranges + 1`` items; an object without ``__iter__`` (iterable only by
+    index) is refused with :class:`MalformedRange`.
     Unsatisfiable specs are dropped; when none is left :class:`UnsatisfiableRange` is
     raised with ``length`` attached, the case for a 416 response. An empty
     representation (``length == 0``) with a non-zero suffix-range is satisfiable per
