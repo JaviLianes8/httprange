@@ -7,7 +7,7 @@ from collections.abc import Iterable, Sequence
 from typing import TypeVar, cast
 
 from ._byterange import ByteRange
-from ._checks import count, optional_str, plain_bytes, plain_str, short, type_name
+from ._checks import count, iterate, optional_str, plain_bytes, plain_str, short, type_name
 from ._content_range import ContentRange
 from ._errors import MalformedMultipart, RangeError
 from ._media import boundary_from_content_type, check_boundary
@@ -138,12 +138,13 @@ def check_parts(parts: Sequence[BytePart]) -> None:
 
 def _items_of(items: object, kind: type[_T], error: type[RangeError], name: str) -> list[_T]:
     """The items of an iterable, each of type ``kind``; text and bytes raise ``error``."""
+    wrong = f"{name} must be an iterable of {kind.__name__}, got {type_name(items)}"
     if issubclass(type(items), (str, bytes, bytearray, memoryview)) or not isinstance(
         items, Iterable
     ):
-        raise error(f"{name} must be an iterable of {kind.__name__}, got {type_name(items)}")
+        raise error(wrong)
     found: list[_T] = []
-    for item in items:
+    for item in iterate(items, error, wrong):
         if not issubclass(type(item), kind):
             raise error(f"{name} must hold {kind.__name__} items, got {type_name(item)}")
         found.append(cast(_T, item))

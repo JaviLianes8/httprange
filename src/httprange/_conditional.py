@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from datetime import datetime
 
-from ._checks import optional_str, plain_bool, plain_str
+from ._checks import optional_str, plain_bool, plain_str, short
 from ._dates import read_http_date, to_utc
 from ._errors import MalformedDate, RangeError
 from ._numbers import OWS
@@ -29,9 +29,11 @@ def if_range_matches(
     ``last_modified`` (an aware ``datetime`` or an HTTP-date), and only if the date is a
     strong validator (RFC 9110 8.8.2.2); a leap second (``:60``) matches only itself.
     Pass ``date_is_strong=False`` when the representation can change twice within one
-    second. A malformed value never matches. A wrong type or a naive ``datetime``
-    raises :class:`RangeError`, whichever kind of validator ``if_range`` holds. When
-    this returns False the server MUST ignore ``Range`` and send 200.
+    second. A malformed ``if_range`` never matches, and neither does an ``etag`` that is
+    not a strong entity-tag (a weak or malformed one). A wrong type or a naive
+    ``datetime`` raises :class:`RangeError`, and a ``last_modified`` string that is not
+    an HTTP-date raises :class:`MalformedDate`, whichever kind of validator ``if_range``
+    holds. When this returns False the server MUST ignore ``Range`` and send 200.
 
     >>> if_range_matches('"v1"', etag='"v1"')
     True
@@ -60,8 +62,8 @@ def validator_date(value: object) -> tuple[datetime, bool] | None:
     """``last_modified`` as an aware UTC instant cut to the second, or ``None``.
 
     The flag tells a leap second (``:60``, read as ``:59``) from the second before it.
-    ``None`` and a string that is not an HTTP-date give ``None``; other types and naive
-    datetimes raise :class:`RangeError`.
+    ``None`` gives ``None``; a string that is not an HTTP-date raises
+    :class:`MalformedDate`, other types and naive datetimes raise :class:`RangeError`.
     """
     if value is None:
         return None
@@ -71,7 +73,7 @@ def validator_date(value: object) -> tuple[datetime, bool] | None:
     try:
         return read_http_date(text)
     except MalformedDate:
-        return None
+        raise MalformedDate(f"last_modified is not an HTTP-date: {short(text)}") from None
 
 
 def _strong_tag(value: str) -> str | None:

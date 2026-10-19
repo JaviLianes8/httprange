@@ -89,6 +89,30 @@ CHANGES: list[Change] = [
     ("long unknown unit", lambda m: decide(m, "items=" + "a," * 200), 416, 200),
     ("many empty items", lambda m: decide(m, "bytes=" + "," * 200 + "0-0"), 416, 200),
     ("many items one bad", lambda m: decide(m, "bytes=" + "0-0," * 101 + "x", 10**6), 200, 416),
+    (
+        "count before syntax",
+        lambda m: m.resolve_ranges("bytes=x,0-1", 10, policy=m.RangePolicy(max_ranges=1)),
+        "MalformedRange",
+        "ExcessiveRanges",
+    ),
+    (
+        "many specs one bad",
+        lambda m: m.resolve_ranges("bytes=" + "0-0," * 101 + "x", 10),
+        "MalformedRange",
+        "ExcessiveRanges",
+    ),
+    (
+        "many empty elements",
+        lambda m: m.resolve_ranges("bytes=0-0" + "," * 120, 10),
+        "ExcessiveRanges",
+        "MalformedRange",
+    ),
+    (
+        "many commas other unit",
+        lambda m: m.resolve_ranges("items=" + "a," * 200, 10),
+        "ExcessiveRanges",
+        "UnsupportedRangeUnit",
+    ),
     ("no specs", lambda m: m.resolve_ranges([], 10), "UnsatisfiableRange", "MalformedRange"),
     (
         "next century",

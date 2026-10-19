@@ -64,11 +64,29 @@ Every change below was checked against the 0.2.0 release from PyPI.
   string conversion limit. `ByteRange.content_range` refuses a non-integer length.
 - `resolve_ranges` raises `MalformedRange` for an empty sequence of specs (it raised
   `UnsatisfiableRange`).
-- `evaluate_range_request` counts specs before it checks their syntax: more than
-  `max_ranges` specs give 416 even when a later one is invalid (0.2.0 answered 200).
-  0.2.0 answered 416 for any header holding at least `max_ranges` + 16 commas, before
-  it looked at the unit or the list: such a header in a unit other than `bytes`, or one
-  that also has more than `max_empty` empty list elements, is now ignored with 200.
+- `resolve_ranges` and `evaluate_range_request` count specs before they check their
+  syntax: more than `max_ranges` specs raise `ExcessiveRanges` from `resolve_ranges`
+  and give 416 from `evaluate_range_request` even when a later spec is invalid (0.2.0
+  raised `MalformedRange` and answered 200). 0.2.0 raised `ExcessiveRanges` (416) for
+  any header holding at least `max_ranges` + 16 commas, before it looked at the unit or
+  the list: such a header in a unit other than `bytes`, or one that also has more than
+  16 empty list elements, now raises `MalformedRange` from `resolve_ranges` when its
+  list is invalid, `UnsupportedRangeUnit` otherwise, and `evaluate_range_request`
+  ignores it with 200.
+- `if_range_matches` and `evaluate_range_request` raise `MalformedDate` for a
+  `last_modified` string that is not an HTTP-date, whatever the headers hold (0.2.0
+  treated it as missing, so the `If-Range` silently did not match); `httprange decide`
+  exits with 1 for such a `--last-modified`. An `etag` that is not a strong entity-tag
+  still never matches, as documented.
+- `RangePolicy` limits (`max_ranges`, `max_overlapping`, `coalesce_gap`) have at most
+  4000 digits, like positions and lengths; a wider one raises `RangeError`, so `repr` of
+  a policy stays cheap.
+- `ByteRange.overlaps` reads a `ByteRange` subclass through a checked copy of its
+  fields: invalid fields raise `RangeError` (0.2.0 compared them as given, leaking
+  `TypeError` or answering silently).
+- `resolve_ranges`, `build_multipart_byteranges` and `encode_multipart_byteranges` raise
+  their documented "must be ... iterable" error for an object whose `__iter__` returns
+  something that is not an iterator (it leaked `TypeError`).
 - `build_multipart_byteranges` refuses a `content_type` with leading or trailing
   whitespace, and reads a `memoryview` of any item size as its bytes (0.2.0 refused
   item sizes above one). `encode_multipart_byteranges` refuses parts that disagree on
@@ -110,7 +128,7 @@ Every change below was checked against the 0.2.0 release from PyPI.
   `from __future__ import annotations` left in 0.2.0.
 - `Development Status :: 5 - Production/Stable`.
 
-## [0.2.0]
+## [0.2.0] - 2026-10-17
 
 ### Added
 
@@ -151,7 +169,9 @@ Every change below was checked against the 0.2.0 release from PyPI.
 
 - Documentation now cites RFC 9110, which obsoletes RFC 7233.
 
-## [0.1.0]
+## [0.1.0] - 2026-10-12
+
+Never published on PyPI; its source is commit 3e75ac8.
 
 - First release: `parse_range` for `Range` headers, `RangeSpec.resolve` and `resolve`
   against a known length (suffix, open ended and unsatisfiable cases), and

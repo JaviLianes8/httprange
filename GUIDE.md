@@ -129,6 +129,12 @@ A date only counts when it is a strong validator (8.8.2.2). The default
 `date_is_strong=True` trusts your dates; if the representation can change twice within
 one second, pass `date_is_strong=False` and only ETags will match.
 
+Your own validators are checked strictly: `last_modified` must be an aware `datetime`
+or an HTTP-date, and anything else raises `RangeError` (`MalformedDate` for a string
+such as `"2026-01-02T03:04:05Z"`), so a typo never passes as a mismatch. An `etag` that
+is not a strong entity-tag (a weak one such as `W/"v1"`, or a value without quotes)
+never matches, so the client gets the whole representation.
+
 ## 6. Command line
 
 ```

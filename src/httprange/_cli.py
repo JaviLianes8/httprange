@@ -81,8 +81,8 @@ def build_parser() -> argparse.ArgumentParser:
     dec.add_argument("--length", type=_length, required=True, help="representation length")
     dec.add_argument("--method", default="GET", help="request method (default GET)")
     dec.add_argument("--if-range", help="the If-Range header value")
-    dec.add_argument("--etag", help="the current ETag of the representation")
-    dec.add_argument("--last-modified", help="the current Last-Modified HTTP-date")
+    dec.add_argument("--etag", help="the current ETag (a weak or malformed one never matches)")
+    dec.add_argument("--last-modified", help="the current Last-Modified (must be an HTTP-date)")
     dec.add_argument("--json", action="store_true", help="print a JSON object")
     return parser
 

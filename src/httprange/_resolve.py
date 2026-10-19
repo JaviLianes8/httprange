@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import cast
 
 from ._byterange import ByteRange
-from ._checks import count, plain_bool, plain_int, size, type_name
+from ._checks import bounded_int, iterate, plain_bool, size, type_name
 from ._errors import (
     ExcessiveRanges,
     MalformedRange,
@@ -31,8 +32,8 @@ class RangePolicy:
     - ``coalesce_gap``: also merge ranges separated by at most this many bytes; the RFC
       notes the overhead per multipart part is around 80 bytes.
 
-    The counts must be ints (not bools) and ``coalesce`` a bool, or
-    :class:`RangeError` is raised.
+    The counts must be ints (not bools) of at most 4000 digits and ``coalesce`` a
+    bool, or :class:`RangeError` is raised.
 
     >>> RangePolicy(coalesce_gap=80)
     RangePolicy(max_ranges=100, max_overlapping=2, coalesce=True, coalesce_gap=80)
@@ -44,12 +45,12 @@ class RangePolicy:
     coalesce_gap: int = 0
 
     def __post_init__(self) -> None:
-        max_ranges = plain_int(self.max_ranges, RangeError, "max_ranges")
+        max_ranges = bounded_int(self.max_ranges, RangeError, "max_ranges")
         if max_ranges < 1:
             raise RangeError("max_ranges must be at least 1")
-        overlapping = count(self.max_overlapping, RangeError, "max_overlapping")
+        overlapping = size(self.max_overlapping, RangeError, "max_overlapping")
         coalesce = plain_bool(self.coalesce, "coalesce")
-        gap = count(self.coalesce_gap, RangeError, "coalesce_gap")
+        gap = size(self.coalesce_gap, RangeError, "coalesce_gap")
         object.__setattr__(self, "max_ranges", max_ranges)
         object.__setattr__(self, "max_overlapping", overlapping)
         object.__setattr__(self, "coalesce", coalesce)
@@ -71,10 +72,14 @@ def resolve_ranges(
 ) -> tuple[ByteRange, ...]:
     """Resolve a ``Range`` header (or its specs) against a representation ``length``.
 
-    Checks run in this order: a unit other than ``bytes`` raises
-    :class:`UnsupportedRangeUnit`; an invalid list, or no specs at all, raises
-    :class:`MalformedRange`; more than ``policy.max_ranges`` specs raise
-    :class:`ExcessiveRanges`; an invalid spec raises :class:`MalformedRange`.
+    Checks run in this order: a header without a token unit and ``=``, an invalid list
+    (no elements, more than 16 empty ones, or an item outside the ``other-range``
+    characters when the unit is not ``bytes``), or no specs at all, raises
+    :class:`MalformedRange`; then a unit other than ``bytes`` raises
+    :class:`UnsupportedRangeUnit`; more than ``policy.max_ranges`` specs raise
+    :class:`ExcessiveRanges`, even when a later spec is invalid; an invalid spec raises
+    :class:`MalformedRange`. An iterable of specs is read only up to
+    ``policy.max_ranges + 1`` items.
     Unsatisfiable specs are dropped; when none is left :class:`UnsatisfiableRange` is
     raised with ``length`` attached, the case for a 416 response. An empty
     representation (``length == 0``) with a non-zero suffix-range is satisfiable per
@@ -124,13 +129,15 @@ def _specs(ranges: object, max_ranges: int) -> list[RangeSpec]:
             raise UnsupportedRangeUnit(f"unsupported range unit {unit[:40]!r}", unit)
         _check_count(len(items), max_ranges)
         return [bytes_spec(item) for item in items]
+    wrong = f"ranges must be a str or RangeSpec items, got {type_name(ranges)}"
     if issubclass(type(ranges), (bytes, bytearray, memoryview)) or not isinstance(ranges, Iterable):
-        raise MalformedRange(f"ranges must be a str or RangeSpec items, got {type_name(ranges)}")
+        raise MalformedRange(wrong)
     specs: list[RangeSpec] = []
-    for spec in ranges:
+    for spec in iterate(ranges, MalformedRange, wrong):
         if not issubclass(type(spec), RangeSpec):
             raise MalformedRange(f"ranges must hold RangeSpec items, got {type_name(spec)}")
-        specs.append(RangeSpec(spec.start, spec.end))
+        given = cast(RangeSpec, spec)
+        specs.append(RangeSpec(given.start, given.end))
         _check_count(len(specs), max_ranges)
     if not specs:
         raise MalformedRange("no range specs to resolve")

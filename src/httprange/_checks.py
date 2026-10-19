@@ -7,6 +7,7 @@ with its own methods cannot steer a result.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from typing import NoReturn, cast
 
 from ._errors import RangeError
@@ -83,6 +84,14 @@ def plain_items(value: object, error: type[RangeError], name: str) -> tuple[obje
     if issubclass(type(value), list):
         return tuple(list.__getitem__(cast("list[object]", value), slice(None)))
     _wrong(error, name, "a tuple or list", value)
+
+
+def iterate(value: object, error: type[RangeError], message: str) -> Iterator[object]:
+    """``iter(value)``; an object that cannot give an iterator raises ``error(message)``."""
+    try:
+        return iter(value)  # type: ignore[call-overload, no-any-return]
+    except TypeError:
+        raise error(message) from None
 
 
 def plain_bool(value: object, name: str) -> bool:

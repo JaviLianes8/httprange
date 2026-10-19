@@ -48,6 +48,14 @@ def _same(old: ModuleType, calls: list[tuple[str, tuple[Any, ...], dict[str, Any
     return len(calls)
 
 
+def _is_date(text: str) -> bool:
+    try:
+        hr.parse_http_date(text)
+    except hr.MalformedDate:
+        return False
+    return True
+
+
 def test_parsers_agree_with_0_2_0(old: ModuleType) -> None:
     rng = random.Random(20)
     calls: list[tuple[str, tuple[Any, ...], dict[str, Any]]] = []
@@ -75,9 +83,12 @@ def test_dates_and_if_range_agree_with_0_2_0(old: ModuleType) -> None:
         calls.append(("parse_http_date", (date,), {"now": NOW}))
         # If-Range reads two-digit years against the real clock, so leave RFC 850 out.
         date = date if "Sunday" not in date else hr.format_http_date(NOW)
+        current = rng.choice((date, NOW - timedelta(seconds=rng.randrange(10**9))))
+        if current == date and not _is_date(date):
+            current = NOW  # a malformed last_modified now raises: see test_upgrade_changes
         kwargs = {
             "etag": gen.entity_tag(rng),
-            "last_modified": rng.choice((date, NOW - timedelta(seconds=rng.randrange(10**9)))),
+            "last_modified": current,
             "date_is_strong": rng.random() < 0.8,
         }
         calls.append(("if_range_matches", (rng.choice((tag, date)),), kwargs))

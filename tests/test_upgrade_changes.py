@@ -14,6 +14,20 @@ from oldnew import Change, decide, kind
 
 import httprange as hr
 
+
+class BadIter:
+    def __iter__(self) -> Any:
+        return 5
+
+
+def lying(module: ModuleType) -> Any:
+    """A ByteRange subclass instance whose fields are not offsets."""
+    item: Any = object.__new__(type("Lying", (module.ByteRange,), {"__slots__": ()}))
+    object.__setattr__(item, "first", "x")
+    object.__setattr__(item, "last", None)
+    return item
+
+
 CHANGES: list[Change] = [
     ("float length", lambda m: m.resolve_ranges("bytes=0-1", 5.0)[0].last, 1, "RangeError"),
     ("float total", lambda m: m.RangeSpec(0, 1).resolve(5.0), (0, 1), "RangeError"),
@@ -51,6 +65,25 @@ CHANGES: list[Change] = [
         "MalformedMultipart",
     ),
     ("huge position", lambda m: m.ByteRange(0, 10**5000).first, 0, "RangeError"),
+    (
+        "malformed validator",
+        lambda m: decide(m, "bytes=0-1", if_range='"a"', etag='"a"', last_modified="x"),
+        206,
+        "MalformedDate",
+    ),
+    (
+        "wide policy limit",
+        lambda m: m.RangePolicy(max_ranges=10**4000).coalesce,
+        True,
+        "RangeError",
+    ),
+    (
+        "lying overlap",
+        lambda m: m.ByteRange(0, 1).overlaps(lying(m)),
+        "leak TypeError",
+        "RangeError",
+    ),
+    ("non-iterator", lambda m: m.resolve_ranges(BadIter(), 10), "leak TypeError", "MalformedRange"),
     (
         "float length text",
         lambda m: m.ByteRange(0, 1).content_range(2.5),

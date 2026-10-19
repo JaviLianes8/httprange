@@ -82,6 +82,9 @@ class ByteRange:
     def overlaps(self, other: ByteRange) -> bool:
         """True when the two ranges share at least one byte.
 
+        ``other`` is read through its fields, which must be valid offsets, or
+        :class:`RangeError` is raised.
+
         >>> ByteRange(0, 9).overlaps(ByteRange(9, 20))
         True
         >>> ByteRange(0, 9).overlaps(ByteRange(10, 20))
@@ -89,6 +92,7 @@ class ByteRange:
         """
         if not issubclass(type(other), ByteRange):
             raise RangeError(f"other must be a ByteRange, got {type_name(other)}")
+        other = ByteRange(other.first, other.last)  # a checked copy, past any override
         return self.first <= other.last and other.first <= self.last
 
     def __repr__(self) -> str:

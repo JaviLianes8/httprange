@@ -138,8 +138,10 @@ def evaluate_range_request(
     - no satisfiable range: 416;
     - otherwise 206 with the resolved (and, per ``policy``, coalesced) ranges.
 
-    Every argument is checked first: a wrong type, a negative ``length`` or an unknown
-    ``on_excessive`` raises :class:`RangeError`, whatever the headers hold.
+    Every argument is checked first, whatever the headers hold: a wrong type, a naive
+    ``last_modified``, a negative ``length`` or an unknown ``on_excessive`` raises
+    :class:`RangeError`, and a ``last_modified`` string that is not an HTTP-date raises
+    :class:`MalformedDate`. An ``etag`` that is not a strong entity-tag never matches.
 
     >>> evaluate_range_request(method="GET", range_header="bytes=-500", length=10000)
     RangeDecision(status=206, ranges=(ByteRange(first=9500, last=9999),), length=10000, reason='1 range(s) satisfiable')
