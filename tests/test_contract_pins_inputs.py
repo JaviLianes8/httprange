@@ -1,6 +1,7 @@
 """Pins for input edges: overlaps on a shared edge byte in either order, short messages
 for a huge malformed last_modified, text and bytes refused as a list of ranges or parts,
-objects iterable only by index, and the decide --etag option. Each runs in the default gate."""
+objects iterable only by index, no specs at all, and the decide --etag option. Each runs
+in the default gate."""
 
 from __future__ import annotations
 
@@ -163,6 +164,21 @@ def test_resolve_ranges_refuses_an_object_iterable_only_by_index() -> None:
     assert str(caught.value) == "ranges must be a str or RangeSpec items, got _ByIndex"
     specs = list(iter(_ByIndex()))
     assert hr.resolve_ranges(specs, 10) == (hr.ByteRange(0, 1),)
+
+
+def _no_specs() -> Iterator[hr.RangeSpec]:
+    yield from ()
+
+
+@pytest.mark.parametrize("length", [10, 0])
+@pytest.mark.parametrize("empty", [list, tuple, lambda: iter([]), _no_specs])
+def test_resolve_ranges_refuses_no_specs_as_malformed(
+    empty: Callable[[], object], length: int
+) -> None:
+    with pytest.raises(hr.MalformedRange) as caught:
+        hr.resolve_ranges(empty(), length)  # type: ignore[arg-type]
+    assert type(caught.value) is hr.MalformedRange
+    assert str(caught.value) == "no range specs to resolve"
 
 
 def test_cli_decide_passes_the_etag(capsys: pytest.CaptureFixture[str]) -> None:
