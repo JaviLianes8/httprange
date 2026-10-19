@@ -18,7 +18,8 @@ POLICY = "RangePolicy(max_ranges=100, max_overlapping=2, coalesce=True, coalesce
 SIGNATURES = {
     "build_content_range": "(start: 'int | None', end: 'int | None', total: 'int | None', *, "
     "unit: 'str' = 'bytes') -> 'str'",
-    "build_multipart_byteranges": "(data: 'bytes', ranges: 'Iterable[ByteRange]', *, "
+    "build_multipart_byteranges": "(data: 'bytes | bytearray | memoryview', "
+    "ranges: 'Iterable[ByteRange]', *, "
     "content_type: 'str | None' = None, boundary: 'str | None' = None) -> 'MultipartBody'",
     "encode_multipart_byteranges": "(parts: 'Iterable[BytePart]', *, "
     "boundary: 'str | None' = None) -> 'MultipartBody'",
@@ -33,8 +34,8 @@ SIGNATURES = {
     "parse_accept_ranges": "(value: 'str', *, max_empty: 'int' = 16) -> 'tuple[str, ...]'",
     "parse_content_range": "(value: 'str') -> 'ContentRange'",
     "parse_http_date": "(value: 'str', *, now: 'datetime | None' = None) -> 'datetime'",
-    "parse_multipart_byteranges": "(body: 'bytes', content_type: 'str', *, "
-    "max_parts: 'int' = 1000) -> 'tuple[BytePart, ...]'",
+    "parse_multipart_byteranges": "(body: 'bytes | bytearray | memoryview', "
+    "content_type: 'str', *, max_parts: 'int' = 1000) -> 'tuple[BytePart, ...]'",
     "parse_range": "(value: 'str') -> 'list[RangeSpec]'",
     "parse_range_request": "(value: 'str', *, max_empty: 'int' = 16) -> 'RangeRequest'",
     "resolve": "(header: 'str', total: 'int') -> 'list[tuple[int, int]]'",

@@ -19,7 +19,7 @@ _T = TypeVar("_T")
 
 
 def build_multipart_byteranges(
-    data: bytes,
+    data: bytes | bytearray | memoryview,
     ranges: Iterable[ByteRange],
     *,
     content_type: str | None = None,
@@ -91,7 +91,7 @@ def encode_multipart_byteranges(
 
 
 def parse_multipart_byteranges(
-    body: bytes, content_type: str, *, max_parts: int = 1000
+    body: bytes | bytearray | memoryview, content_type: str, *, max_parts: int = 1000
 ) -> tuple[BytePart, ...]:
     """Split a 206 ``multipart/byteranges`` body into its parts.
 
