@@ -16,7 +16,7 @@ Progress:
 - [x] Five QA lenses report PASS (item 19): every finding of rounds 1 to 10 fixed and re-verified
 - [x] Independent reviewer reports PASS (item 16), at 0e51b47
 - [x] Gates (item 15), run at ae86f77
-- [ ] PR #3 open from `release/1.0.0`, trace guard CLEAN (item 17); merge and publish left to the maintainer
+- [x] PR #3 open from `release/1.0.0`, trace guard CLEAN at 299ee56 (item 17); merge and publish left to the maintainer
 
 ## Scorecard (author)
 
@@ -545,3 +545,14 @@ fetched sources, the 0.2.0 oracle, Node.js, werkzeug, aiohttp and both e2e switc
 | 17 | PR from `release/1.0.0`; merge and publish left to the maintainer | PASS |
 | 18 | Contracts bite (mutations) | PASS |
 | 19 | Five independent QA lenses | PASS |
+
+### Final gates (at 299ee56)
+
+On another machine, from a fresh clone of `release/1.0.0` from GitHub, CPython 3.14.2:
+`ruff format --check .`, `ruff check .`, `mypy --strict src` and `pytest` (with
+`--timeout 300`) each exit 0; `python -m build` builds `httprange-1.0.0.tar.gz` and
+`httprange-1.0.0-py3-none-any.whl`, and `twine check --strict` passes both. The wheel,
+installed in a throwaway venv, imports from its `site-packages` as 1.0.0, and the test
+suite run against it from a copy of the tree without `src` gives 931 passed, 332 skipped
+(the opt-in sources, oracles and e2e switches are off); `test_e2e_cli.py` builds its own
+wheel from the source tree, so it runs in the clone's `pytest` gate instead.
