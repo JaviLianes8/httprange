@@ -123,14 +123,18 @@ def test_a_part_with_two_content_types_is_refused() -> None:
 
 
 @pytest.mark.parametrize(
-    "content_type",
+    ("content_type", "message"),
     [
-        'multipart/byteranges; boundary="b "',
-        "multipart/byteranges; boundary=b; boundary=c",
-        "multipart/byteranges; boundary=b; BOUNDARY=b",
+        ('multipart/byteranges; boundary="b "', "invalid multipart boundary"),
+        ("multipart/byteranges; boundary=b; boundary=c", "more than one boundary"),
+        ("multipart/byteranges; boundary=b; BOUNDARY=b", "more than one boundary"),
     ],
 )
-def test_bad_boundary_parameters_are_refused(content_type: str) -> None:
+def test_bad_boundary_parameters_are_refused(content_type: str, message: str) -> None:
     body = _part("bytes") + b"--b--\r\n"
-    with pytest.raises(hr.MalformedMultipart, match="boundary"):
+    with pytest.raises(hr.MalformedMultipart, match=message):
         hr.parse_multipart_byteranges(body, content_type)
+    # Framed with the trailing space too, so only the parameter check can refuse it.
+    trailing = b"--b \r\nContent-Range: bytes 0-1/5\r\n\r\nab\r\n--b --\r\n"
+    with pytest.raises(hr.MalformedMultipart, match=message):
+        hr.parse_multipart_byteranges(trailing, content_type)
