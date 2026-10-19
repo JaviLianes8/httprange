@@ -13,7 +13,7 @@ Progress:
 - [x] Contract, fuzz and author mutation round (items 6, 9, 18)
 - [x] Docs: README, GUIDE, CHANGELOG (items 11, 12)
 - [x] Packaging, e2e and upgrade from PyPI 0.2.0, every Python (items 8, 10, 13, 14)
-- [ ] Five QA lenses report PASS (item 19)
+- [ ] Five QA lenses report PASS (item 19): round 1 findings fixed, re-verification pending
 - [ ] Independent reviewer reports PASS (item 16)
 - [x] Gates (item 15), run at ae86f77
 - [ ] PR #3 open from `release/1.0.0`, trace guard CLEAN (item 17); merge and publish left to the maintainer
@@ -173,3 +173,46 @@ d (packaging and e2e) 3, e (contract strength) 11. None was disputed.
 | e F11 | M39, M51, M64, M68, M72, M74 were caught only by opt-in tests | Self-contained copies, written by hand from the grammar | `test_contract_edges.py` |
 
 Every behaviour change is listed in the CHANGELOG 1.0.0 section.
+
+Commits: 38fa10d (the fixes), da874da and 3051b81 (two contracts made exact after the
+mutation check below).
+
+Mutation check of this round, one mutant at a time against the round's test files
+(a kill there is a kill by the whole suite), on the other machine at da874da:
+
+| Mutant | Caught by |
+| --- | --- |
+| M10 inner zeros of `int_text` dropped | `test_wide_numbers_print_and_parse_exactly` |
+| M11 leading zeros counted toward the cap | `test_the_digit_cap_counts_significant_digits_only` |
+| M56 `last >= length` relaxed to `>` | `test_a_decision_range_must_end_before_the_length` |
+| M73 quoted-pair backslash kept | `test_a_quoted_boundary_unescapes_its_quoted_pairs` |
+| M75 DEL allowed in a field value | `test_control_characters_and_del_are_refused_in_a_part_content_type` |
+| M84 `range:` line for a single range | `test_decide_prints_exact_lines_for_a_single_range` |
+| M86 `--last-modified` ignored | `test_decide_matches_a_date_if_range_against_last_modified` |
+| M85 `cut()` removed from usage errors | `test_error_messages_are_cut_to_200_characters` |
+| M85 `cut()` removed from library errors | `test_a_long_library_error_is_cut_too` (added in 3051b81; it survived at da874da) |
+| M66 boundary collision retry removed | `test_a_random_boundary_that_collides_with_the_data_is_drawn_again` |
+| M67 up-front range check removed | `test_a_range_past_the_data_raises_the_base_error` |
+| M39 tab accepted after the unit | `test_content_range_needs_one_space_after_the_unit` |
+| M51 obs-text dropped from entity tags | `test_obs_text_entity_tags_match_by_strong_comparison` |
+| M64 unit agreement check removed | `test_parts_must_agree_on_the_range_unit` |
+| M68 duplicate part Content-Type allowed | `test_a_part_with_two_content_types_is_refused` |
+| M72 boundary trailing space allowed | `test_bad_boundary_parameters_are_refused` (survived at 38fa10d, which matched the wrong error; exact since da874da) |
+| M74 duplicate boundary parameter allowed | `test_bad_boundary_parameters_are_refused` |
+| Leap flag dropped | `test_a_leap_second_matches_only_itself` |
+| `to_utc` reads the subclass again | `test_a_datetime_subclass_cannot_change_the_formatted_date` |
+| Spec subclasses kept as given | `test_spec_subclasses_resolve_as_their_fields_say` |
+| `RangeSpec.__repr__` removed | `test_values_print_under_the_smallest_digit_limit` |
+| Unit back in `args` | `test_error_args_hold_the_message_only` |
+| Argparse exit not flushed | `test_a_closed_reader_gives_exit_1_and_nothing_on_stderr` |
+| Broken `parse_range` docstring example | `test_every_public_example_runs_from_the_package` |
+
+Gates at 3051b81 on the other machine (CPython 3.14.2, fresh venv from the pushed
+branch): `ruff format --check .`, `ruff check .`, `mypy --strict src`,
+`mypy --strict src tests` and `pytest` exit 0 (on a clean clone at 38fa10d: 734 passed,
+320 skipped; with the upstream files fetched at 3051b81: 1016 passed, 39 skipped).
+`scripts/check.ps1 -Full` exits 0 at 3051b81: 1055 passed, no skip.
+
+### Disputed findings
+
+None in round 1.
