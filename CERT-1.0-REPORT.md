@@ -420,7 +420,28 @@ Commit: 3c6f7e6 (pins). Gates at 3c6f7e6 on the other machine (CPython 3.14.2, f
 clone from GitHub and fresh venv): `ruff format --check .`, `ruff check .`,
 `mypy --strict src`, `mypy --strict tests` and `pytest` (with `--timeout 300`) all exit 0.
 
+### Round 9 (at 9862f7b): lens e, 1 finding, fixed
+
+Lens e confirmed the round 8 pins (Q06 to Q09) kill their mutants and ran a fresh sweep
+(S01 to S10): every mutant but S07 was killed. No behaviour changed in this round and no
+source file was edited: the finding was a missing contract on a refusal the code already
+made.
+
+| Finding | What was missing | Fix | Pinning test |
+|---|---|---|---|
+| e S07 | `resolve_ranges` refusing subclasses of `bytes` and `bytearray` as the ranges (only exact classes were pinned) | Added `_Bytes(b"")`, `_Bytes(b"ab")`, `_ByteArray(b"a")` and `_SpecBytes(b"x")`, a `bytes` subclass whose `__iter__` yields `RangeSpec(0, 1)`, each refused with `MalformedRange` and "ranges must be a str or RangeSpec items, got <name>" | `test_resolve_ranges_refuses_bytes_as_the_ranges` |
+
+Mutation check of this round: with the refusal in `_resolve._specs` changed to
+`type(ranges) in (bytes, bytearray, memoryview)`, the four new cases fail (the
+`_SpecBytes` case resolves to `(ByteRange(first=0, last=1),)` instead of raising); with the
+source restored they pass.
+
+Commit: 9f23917 (pins). Gates at 9f23917 on the other machine (CPython 3.14.2, fresh
+clone from GitHub and fresh venv): `ruff format --check .`, `ruff check .`,
+`mypy --strict src`, `mypy --strict tests` and `pytest` (with `--timeout 300`, 931 passed,
+332 skipped) all exit 0.
+
 ### Disputed findings
 
 None in round 1. None in round 2. None in round 3. None in round 4. None in round 5.
-None in round 6. None in round 7. None in round 8.
+None in round 6. None in round 7. None in round 8. None in round 9.
