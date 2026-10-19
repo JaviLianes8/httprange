@@ -501,6 +501,13 @@ prefixes with exit status 1. With the count moved after the spec parsing in
 source restored it passes. The opt-in upgrade test now upgrades in place from both PyPI
 releases, 0.2.0 and 1.0.0.
 
+Commit: fcde20c (docs, pins, version 1.0.1 and CHANGELOG). Gates at fcde20c on the other
+machine (CPython 3.14, fresh clone of `release/1.0.1` from GitHub and fresh venv):
+`ruff format --check .`, `ruff check .`, `mypy --strict src`, `mypy --strict tests` and
+`pytest` (with `--timeout 300`) all exit 0; with `HTTPRANGE_E2E=1` and
+`HTTPRANGE_E2E_PYPI=1`, `test_e2e_wheel.py` and `test_e2e_cli.py` exit 0, the 1.0.1 wheel
+upgrading in place from PyPI 0.2.0 and from PyPI 1.0.0.
+
 ### Disputed findings
 
 None in round 1. None in round 2. None in round 3. None in round 4. None in round 5.
