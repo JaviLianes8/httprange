@@ -82,7 +82,7 @@ def plain_items(value: object, error: type[RangeError], name: str) -> tuple[obje
         return tuple.__getitem__(cast("tuple[object, ...]", value), slice(None))
     if issubclass(type(value), list):
         return tuple(list.__getitem__(cast("list[object]", value), slice(None)))
-    _wrong(error, name, "a tuple", value)
+    _wrong(error, name, "a tuple or list", value)
 
 
 def plain_bool(value: object, name: str) -> bool:
@@ -109,4 +109,4 @@ def plain_bytes(value: object, error: type[RangeError], name: str) -> bytes:
             return cast(memoryview, value).tobytes()
         except ValueError:
             raise error(f"{name} is a released memoryview") from None
-    _wrong(error, name, "bytes", value)
+    _wrong(error, name, "bytes, bytearray or memoryview", value)

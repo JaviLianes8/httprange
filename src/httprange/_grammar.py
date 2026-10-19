@@ -54,10 +54,14 @@ class RangeRequest:
         if not is_token(unit):
             raise MalformedRange(f"range unit {short(unit)} is not a token")
         unit = unit.lower()
-        specs = plain_items(self.specs, MalformedRange, "specs")
-        for spec in specs:
+        given = plain_items(self.specs, MalformedRange, "specs")
+        for spec in given:
             if not issubclass(type(spec), RangeSpec):
                 raise MalformedRange(f"specs must hold RangeSpec items, got {type_name(spec)}")
+        # Plain copies, so a subclass cannot put its own text into the header value.
+        specs = tuple(
+            RangeSpec(spec.start, spec.end) for spec in cast("tuple[RangeSpec, ...]", given)
+        )
         raw = plain_items(self.other, MalformedRange, "other")
         other = tuple(plain_str(item, MalformedRange, "other") for item in raw)
         for item in other:
@@ -67,7 +71,7 @@ class RangeRequest:
         if unit != UNIT and (specs or not other):
             raise MalformedRange("a range request in another unit needs other items only")
         object.__setattr__(self, "unit", unit)
-        object.__setattr__(self, "specs", cast("tuple[RangeSpec, ...]", specs))
+        object.__setattr__(self, "specs", specs)
         object.__setattr__(self, "other", other)
 
     @property

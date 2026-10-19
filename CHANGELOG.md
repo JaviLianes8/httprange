@@ -42,7 +42,10 @@ Every change below was checked against the 0.2.0 release from PyPI.
 - An argument of the wrong type raises `RangeError` instead of being used as given or
   leaking another exception: a `float` or `bool` length or total (0.2.0 accepted `5.0`
   and `True`), a non-integer `RangePolicy` limit, a non-`bool` `coalesce` or
-  `date_is_strong`, a `bytes` method.
+  `date_is_strong`, a `bytes` method. The value classes check their fields the same way
+  (0.2.0 stored any value): a `set` or generator for `RangeRequest.specs` or
+  `RangeDecision.ranges` raises "must be a tuple or list", a `str` for `BytePart.data`
+  or `MultipartBody.body` raises "must be bytes, bytearray or memoryview".
 - `parse_range_request` raises `MalformedRange` for a `bytes` header (it leaked
   `TypeError`).
 - `evaluate_range_request` and `if_range_matches` raise `RangeError` for a naive
@@ -86,9 +89,11 @@ Every change below was checked against the 0.2.0 release from PyPI.
   a subclass's own `astimezone`, `utcoffset` or `weekday` no longer changes a result,
   and a `tzinfo` that returns an invalid offset raises `RangeError` (it leaked
   `ValueError` or `TypeError`). Likewise `resolve_ranges`, `build_multipart_byteranges`,
-  `encode_multipart_byteranges`, `BytePart` and `RangeDecision` read subclasses of
-  `RangeSpec`, `ByteRange`, `ContentRange`, `BytePart` and `RangePolicy` by their fields
-  only: `RangeDecision.ranges` and `BytePart.content_range` hold plain instances.
+  `encode_multipart_byteranges`, `BytePart`, `RangeDecision` and `RangeRequest` read
+  subclasses of `RangeSpec`, `ByteRange`, `ContentRange`, `BytePart` and `RangePolicy` by
+  their fields only: `RangeDecision.ranges`, `BytePart.content_range` and
+  `RangeRequest.specs` hold plain instances, so `str` of a `RangeRequest` is always the
+  canonical header value (0.2.0 called each spec's own `__str__`).
 - `UnsatisfiableRange.args` and `UnsupportedRangeUnit.args` hold the message only (0.2.0
   added the length or the unit, so `repr` of the error could echo a huge unit); the
   `length` and `unit` attributes are unchanged.

@@ -127,3 +127,30 @@ def test_usage_errors_still_exit_1_with_a_closed_reader() -> None:
     code, err = _closed_reader("resolve", "bytes=0-1")
     assert code == 1
     assert b"the following arguments are required: --length" in err
+
+
+class _DeadStdout:
+    """A standard output whose every write and flush fails, as with a vanished reader."""
+
+    encoding = "utf-8"
+
+    def write(self, text: str) -> int:
+        raise BrokenPipeError(32, "Broken pipe")
+
+    def flush(self) -> None:
+        raise BrokenPipeError(32, "Broken pipe")
+
+
+def test_a_failing_print_gives_exit_1(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(sys, "stdout", _DeadStdout())
+    assert main(["parse", "bytes=0-1"]) == 1
+
+
+@pytest.mark.parametrize("flag", ["--help", "--version"])
+def test_help_into_a_failing_stdout_gives_exit_1(
+    monkeypatch: pytest.MonkeyPatch, flag: str
+) -> None:
+    monkeypatch.setattr(sys, "stdout", _DeadStdout())
+    with pytest.raises(SystemExit) as info:
+        main([flag])
+    assert info.value.code == 1
