@@ -7,13 +7,16 @@ checked too, and a type with a huge name never reaches an error message uncut.
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import datetime
 from typing import Any, NamedTuple
 
 import pytest
 
 import httprange as hr
 
-HUGE = type("X" * 5000, (), {})
+HEAD = "X" * 39 + "Y"
+HUGE = type(HEAD + "Y" * 4960, (), {})
+HUGE_DATE = type(HEAD + "Y" * 4960, (datetime,), {})
 
 
 class SpecLookalike(NamedTuple):
@@ -104,8 +107,15 @@ def test_every_type_error_cuts_a_huge_type_name(call: Callable[[Any], object]) -
     with pytest.raises(hr.RangeError) as info:
         call(HUGE())
     message = str(info.value)
-    assert message.endswith(", got " + "X" * 40)
-    assert "X" * 41 not in message
+    assert message.endswith(", got " + HEAD)
+    assert "YY" not in message
+
+
+def test_a_naive_datetime_error_cuts_a_huge_type_name_keeping_its_head() -> None:
+    with pytest.raises(hr.RangeError) as info:
+        hr.format_http_date(HUGE_DATE(2020, 1, 1))
+    assert str(info.value).endswith(", got " + HEAD)
+    assert "YY" not in str(info.value)
 
 
 def test_a_type_error_names_the_class_not_its_qualified_name() -> None:

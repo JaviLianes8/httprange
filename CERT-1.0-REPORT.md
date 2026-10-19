@@ -13,7 +13,7 @@ Progress:
 - [x] Contract, fuzz and author mutation round (items 6, 9, 18)
 - [x] Docs: README, GUIDE, CHANGELOG (items 11, 12)
 - [x] Packaging, e2e and upgrade from PyPI 0.2.0, every Python (items 8, 10, 13, 14)
-- [ ] Five QA lenses report PASS (item 19): rounds 1 to 3 findings fixed, re-verification pending
+- [ ] Five QA lenses report PASS (item 19): rounds 1 to 5 findings fixed, re-verification pending
 - [ ] Independent reviewer reports PASS (item 16)
 - [x] Gates (item 15), run at ae86f77
 - [ ] PR #3 open from `release/1.0.0`, trace guard CLEAN (item 17); merge and publish left to the maintainer
@@ -299,6 +299,30 @@ Commit: the commit that adds `tests/test_contract_item_types.py`. Gates on that 
 other machine (CPython 3.14.2, fresh venv): `ruff format --check .`, `ruff check .`,
 `mypy --strict src`, `mypy --strict tests` and `pytest` (with `--timeout 300`) all exit 0.
 
+### Round 5 (at bdd6147): lens e, 4 findings, all fixed
+
+Lens e re-verified R4-1 to R4-5 as fixed (Q03, Q17, Q20, Q21 to Q28 and Q30 killed) and
+ran 40 new probes; 20 survived, grouped into four findings. All four were gaps in the
+tests, not wrong behaviour: on the round 4 code each repro already gives the documented
+error. No library code and no CHANGELOG entry changed. None was disputed.
+
+| Lens / id | Finding | Fix | Contract |
+| --- | --- | --- | --- |
+| e R5-1 (N12, N13, N15, N16, N17, N18) | Lookalikes with the right fields were untested at five more type checks (and `format_http_date`, N18, survived too) | A named tuple (or a datetime lookalike) is refused with the documented error and message at each one | `test_a_lookalike_with_the_right_fields_is_refused` |
+| e R5-2 (N10, N11, N21) | Items after the first were unchecked in tests for `resolve_ranges`, `build_multipart_byteranges` and `RangeRequest.other` | The bad item comes second in each test | `test_resolve_ranges_checks_every_item_not_only_the_first`, `test_build_multipart_byteranges_checks_every_item_not_only_the_first`, `test_range_request_checks_every_other_item_not_only_the_first` |
+| e R5-3 (N26 to N29, N31, N32, N35, N36) | Objects faking `__class__` were refused in tests at only two sites | One parametrized test over the ten entry points that check a type: an object whose `__class__` claims the expected class raises a `RangeError` naming its real type | `test_an_object_faking_its_class_is_refused_with_the_documented_error` |
+| e R5-4 (N06, N33, N34) | The type-name cut missed the naive-datetime message, did not tell the head of a name from its tail, and did not cover a raising `__class__` | The huge test name is 39 `X` then `Y`s, and every message must end with the head; a huge-named naive datetime subclass is cut too; a class whose `__class__` raises gets the documented `MalformedRange` | `test_every_type_error_cuts_a_huge_type_name`, `test_a_naive_datetime_error_cuts_a_huge_type_name_keeping_its_head`, `test_a_class_property_that_raises_does_not_escape_a_type_error` |
+
+New tests in `tests/test_contract_spoofs.py`; the cut tests in
+`tests/test_contract_item_types.py`. Mutation check of this round, one mutant at a time
+against those two files on this PC (CPython 3.13): all 20 survivors (N06, N10 to N13,
+N15 to N18, N21, N26 to N29, N31 to N36) are killed, and N34 is killed by the raising
+`__class__` test alone as well.
+
+Commit: the commit that adds `tests/test_contract_spoofs.py`. Gates on that tree on the
+other machine (CPython 3.14.2, fresh venv): `ruff format --check .`, `ruff check .`,
+`mypy --strict src`, `mypy --strict tests` and `pytest` (with `--timeout 300`) all exit 0.
+
 ### Disputed findings
 
-None in round 1. None in round 2. None in round 3. None in round 4.
+None in round 1. None in round 2. None in round 3. None in round 4. None in round 5.
