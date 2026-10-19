@@ -13,7 +13,7 @@ Progress:
 - [x] Contract, fuzz and author mutation round (items 6, 9, 18)
 - [x] Docs: README, GUIDE, CHANGELOG (items 11, 12)
 - [x] Packaging, e2e and upgrade from PyPI 0.2.0, every Python (items 8, 10, 13, 14)
-- [ ] Five QA lenses report PASS (item 19): rounds 1 to 5 findings fixed, re-verification pending
+- [ ] Five QA lenses report PASS (item 19): rounds 1 to 6 findings fixed, re-verification pending
 - [ ] Independent reviewer reports PASS (item 16)
 - [x] Gates (item 15), run at ae86f77
 - [ ] PR #3 open from `release/1.0.0`, trace guard CLEAN (item 17); merge and publish left to the maintainer
@@ -323,6 +323,57 @@ Commit: the commit that adds `tests/test_contract_spoofs.py`. Gates on that tree
 other machine (CPython 3.14.2, fresh venv): `ruff format --check .`, `ruff check .`,
 `mypy --strict src`, `mypy --strict tests` and `pytest` (with `--timeout 300`) all exit 0.
 
+### Round 6 (at 4aa8bbc): lenses a, c and e, 32 findings, all fixed
+
+Lens a (API and docs) reported 4 low findings, lens c (adversarial) 3 low findings and
+lens e (contract strength, 193 mutants of its own) 25 findings: 24 surviving mutants and
+6 more killed only by opt-in tests. Four findings changed library behaviour (a A1, c F1
+to F3); each of those fixes started with a contract in `tests/test_contract_strict.py`
+that failed on 4aa8bbc (10 failing cases: four `last_modified` strings, the CLI typo,
+both lying `overlaps` subclasses, the non-iterator and the three policy limits) and
+passes now. Every behaviour change is in the CHANGELOG and pinned against 0.2.0 in
+`test_upgrade_changes.py` and `test_upgrade_changes_wire.py`. None was disputed.
+
+| Lens / id | Finding | Fix | Contract |
+| --- | --- | --- | --- |
+| a A1 | An invalid `last_modified` string was treated as missing, silently | `if_range_matches` and `evaluate_range_request` raise `MalformedDate` for it, whatever the headers hold; `httprange decide` exits 1. A malformed or weak `etag` still never matches, now said in both docstrings, GUIDE section 5 and the `--etag` help | `test_a_last_modified_that_is_not_an_http_date_raises`, `test_the_cli_refuses_a_last_modified_typo`, `test_a_last_modified_string_that_is_not_a_date_raises`, "malformed validator" in `test_upgrade_changes.py` |
+| a A2, e F25 (N21) | The `resolve_ranges` docstring put the unit check before the list check | The docstring gives the real order: unit and list grammar, then the unit, then the count (before spec syntax), then each spec | `test_resolve_ranges_checks_the_list_before_the_unit` |
+| a A3 | The CHANGELOG named only `evaluate_range_request` for the count-before-syntax and comma changes | The bullet names `resolve_ranges` and its exception types before and after | "count before syntax", "many specs one bad", "many empty elements", "many commas other unit" in `test_upgrade_changes_wire.py` |
+| a A4 | `[0.2.0]` and `[0.1.0]` had no dates | `2026-10-17` (PyPI upload) and `2026-10-12` (commit 3e75ac8, never on PyPI) | none (docs) |
+| c F1 | `ByteRange.overlaps` compared a subclass's fields unchecked | It reads `other` through a checked copy; bad fields raise `RangeError` | `test_overlaps_reads_a_subclass_through_a_checked_copy`, "lying overlap" |
+| c F2 | An `__iter__` returning a non-iterator leaked `TypeError` | A new `iterate` check gives the documented "must be ... iterable" error from `resolve_ranges`, `build_multipart_byteranges` and `encode_multipart_byteranges`; errors from the caller's own iterator still pass through | `test_an_iterable_whose_iter_returns_a_non_iterator_raises_a_typed_error`, `test_an_error_raised_by_the_callers_own_iterator_passes_through`, "non-iterator" |
+| c F3 | `repr(RangePolicy)` was quadratic in unbounded limits | Policy limits take at most 4000 digits, like positions | `test_policy_counts_are_bounded_to_4000_digits`, "wide policy limit" |
+| e F1 (N26) | The `max_ranges` cap on an iterable of specs was unpinned | 101 specs raise; an endless generator is read 4 items for `max_ranges=3` | `test_resolve_ranges_caps_an_iterable_of_specs_while_reading_it` |
+| e F2, F3 (N34, N35) | `last_modified` and `etag` were not pinned as checked up front | Bad validators raise for every header, with `GET` and `HEAD` | `test_validators_are_checked_whatever_the_headers_hold` |
+| e F4 (N38) | Only some bad `on_excessive` values were pinned | Seven near misses, the empty string included | `test_on_excessive_refuses_every_value_but_reject_and_ignore` |
+| e F5 to F7 (N39 to N41) | `RangeDecision` status set, ranges per status and `reason` type | Every status 0 to 999 but 200, 206 and 416; ranges on 200 and 416; four non-str reasons | `test_a_decision_status_is_200_206_or_416_only`, `test_only_a_206_decision_carries_ranges`, `test_a_decision_reason_must_be_a_str` |
+| e F8 to F10 (N18 to N20) | `RangeRequest` field rules and token unit | Specs with other items, specs in another unit, seven non-token units | `test_a_bytes_request_holds_specs_only_and_another_unit_other_items_only`, `test_a_range_request_unit_must_be_a_token` |
+| e F11 (N27) | A str subclass header in `resolve_ranges` | Parsed as a header | `test_resolve_ranges_parses_a_str_subclass_as_a_header` |
+| e F12 (N12) | No int class faker | An object claiming `int` is refused at eight entry points | `test_an_int_class_faker_is_refused_with_the_documented_error` |
+| e F13 (N47) | The 29 February clock in the RFC 850 window | 01-Mar-74 is 1974, 28-Feb-74 is 2074 | `test_rfc_850_years_use_a_29_february_clock_as_the_28th` |
+| e F14 to F17 (N60, N67, N77, N82) | Unit lower-cased before the token check, complete length 0, unsatisfied part in another unit, part field value above U+00FF | One test each | `test_a_content_range_unit_is_checked_before_it_is_lower_cased`, `test_a_range_never_fits_a_complete_length_of_zero`, `test_a_part_needs_a_satisfied_content_range_in_any_unit`, `test_a_part_content_type_refuses_characters_outside_a_field_value` |
+| e F18, F19 (N85, N86) | Content-Type parameter grammar beyond the boundary | Quoted-pairs with controls, empty and broken unquoted values are refused | `test_every_content_type_parameter_follows_the_grammar` |
+| e F20 (N89) | Short messages for huge numbers | Eight entry points with 1500-digit numbers: message under 120 characters, no digit run | `test_an_error_names_a_huge_number_by_its_size` |
+| e F21 (N100) | `decide --method` | `HEAD` gives 200 with its reason | `test_cli_decide_passes_the_method` |
+| e F22 (N74) | `build_multipart_byteranges` checks `content_type` first | `MalformedMultipart` before a bad range or a non-iterable | `test_build_multipart_checks_the_content_type_before_the_ranges` |
+| e F23, F24 (N98, N105) | CLI text and JSON under the 640-digit limit | `parse-content-range`, `resolve --json` and `decide --json` with 4000-digit numbers | `test_cli_text_and_json_print_wide_numbers_under_the_digit_limit` |
+| e F25 (N49, N58, N63, N75, N76) | Five contracts lived only in opt-in tests | Self-contained copies that always run: whitespace around dates, entity-tags and Content-Range values; tabs in part field values; non-token part header names | `test_optional_whitespace_around_whole_values_is_ignored`, `test_part_field_values_drop_spaces_and_tabs_and_names_must_be_tokens` |
+
+The new pins are in `tests/test_contract_pins.py` and `tests/test_contract_pins_wire.py`.
+Mutation check of this round on the other machine (CPython 3.14.2, fresh clone at 32ed5ad,
+one mutant at a time against the three new test files, with lens e's exact replacements;
+N26 re-anchored to the new copy line): all 30 (N12, N18 to N21, N26, N27, N34, N35, N38
+to N41, N47, N49, N58, N60, N63, N67, N74 to N77, N82, N85, N86, N89, N98, N100, N105)
+are killed.
+
+Commits: d9c9058 (behaviour fixes, docs and CHANGELOG), 32ed5ad (pins). Gates at 32ed5ad
+on the other machine (CPython 3.14.2, fresh clone and venv): `ruff format --check .`,
+`ruff check .`, `mypy --strict src`, `mypy --strict tests` and `pytest` (with
+`--timeout 300`) all exit 0 (889 passed, 332 skipped: the opt-in sources, oracles and e2e
+switches are off in the default run). The 0.2.0 differential (`test_upgrade*.py`) passes
+on this PC with `HTTPRANGE_V02` set.
+
 ### Disputed findings
 
 None in round 1. None in round 2. None in round 3. None in round 4. None in round 5.
+None in round 6.
