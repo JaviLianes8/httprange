@@ -16,7 +16,7 @@ Progress:
 - [ ] Five QA lenses report PASS (item 19)
 - [ ] Independent reviewer reports PASS (item 16)
 - [x] Gates (item 15), run at ae86f77
-- [ ] PR and trace guard CLEAN (item 17); merge and publish left to the maintainer
+- [ ] PR #3 open from `release/1.0.0`, trace guard CLEAN (item 17); merge and publish left to the maintainer
 
 ## Scorecard (author)
 
