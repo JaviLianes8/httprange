@@ -4,7 +4,7 @@ objects iterable only by index, and the decide --etag option. Each runs in the d
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 
 import pytest
 
@@ -16,6 +16,21 @@ HUGE = "x" * 1_000_000
 
 class _Text(str):
     pass
+
+
+class _Bytes(bytes):
+    pass
+
+
+class _ByteArray(bytearray):
+    pass
+
+
+class _SpecBytes(bytes):
+    """Bytes whose iteration yields range specs, so only the type check can refuse it."""
+
+    def __iter__(self) -> Iterator[hr.RangeSpec]:  # type: ignore[override]
+        return iter([hr.RangeSpec(0, 1)])
 
 
 class _ByIndex:
@@ -51,7 +66,18 @@ NOT_A_LIST = [
     memoryview(b""),
     memoryview(b"x"),
 ]
-BYTES_LIKE = [b"", b"ab", bytearray(), bytearray(b"a"), memoryview(b""), memoryview(b"a")]
+BYTES_LIKE = [
+    b"",
+    b"ab",
+    bytearray(),
+    bytearray(b"a"),
+    memoryview(b""),
+    memoryview(b"a"),
+    _Bytes(b""),
+    _Bytes(b"ab"),
+    _ByteArray(b"a"),
+    _SpecBytes(b"x"),
+]
 
 
 @pytest.mark.parametrize(
