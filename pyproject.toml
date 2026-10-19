@@ -4,18 +4,29 @@ build-backend = "hatchling.build"
 
 [project]
 name = "httprange"
-version = "0.2.0"
+version = "1.0.0"
 description = "Parse and build HTTP Range and Content-Range headers (RFC 9110), zero dependencies, fully typed"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Javier Lianes", email = "javier@lianes8studio.com" }]
-keywords = ["http", "range", "content-range", "partial-content", "byteranges", "rfc9110"]
+keywords = ["http", "range", "content-range", "if-range", "partial-content", "206", "416", "byteranges", "multipart", "rfc9110"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
     "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+    "Topic :: Software Development :: Libraries",
     "Typing :: Typed",
 ]
 dependencies = []
@@ -28,11 +39,15 @@ dev = ["ruff", "mypy", "pytest", "pytest-timeout", "build", "twine"]
 
 [project.urls]
 Homepage = "https://lianes8studio.com"
-Repository = "https://github.com/JaviLianes8/httprange"
+Source = "https://github.com/JaviLianes8/httprange"
 Issues = "https://github.com/JaviLianes8/httprange/issues"
 Changelog = "https://github.com/JaviLianes8/httprange/blob/main/CHANGELOG.md"
 LinkedIn = "https://www.linkedin.com/in/jlianes/"
 Funding = "https://buymeacoffee.com/jlianesglrs"
+
+[tool.hatch.build.targets.sdist]
+# Third-party test files are fetched locally and never shipped; only their manifest is.
+exclude = ["IMPROVEMENTS-round*.md", "CERT-1.0-*.md", "tests/upstream/*", "!tests/upstream/MANIFEST.json"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/httprange"]
