@@ -111,15 +111,15 @@ Errors go to stderr with exit status 1. `httprange --help` lists more examples.
 ## Why
 
 RFC 9110 defines byte ranges once, but in Python the code that implements them lives
-inside web frameworks, each with its own scope (checked against the releases named):
+inside web frameworks, each with its own scope (checked on 2026-10-19 against the releases named):
 
-- werkzeug 3.1.3 exports `parse_range_header` and friends, but it is a WSGI toolkit
+- werkzeug 3.1.9 exports `parse_range_header` and friends, but it is a WSGI toolkit
   that depends on MarkupSafe, and its responses serve only a single range: a request for
   several ranges is answered with 416. It has no `multipart/byteranges` builder or
   parser.
 - Starlette 1.9.0 serves single and multiple ranges from `FileResponse`, but the parser
   is a private method of that class.
-- aiohttp 3.13.3 offers `request.http_range`, which describes one range as a `slice`
+- aiohttp 3.14.5 offers `request.http_range`, which describes one range as a `slice`
   and raises `ValueError` for a list of ranges.
 - Django 6.1.2 does not handle `Range` in `HttpResponse`, `FileResponse` or the static
   file view.

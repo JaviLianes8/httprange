@@ -1,6 +1,7 @@
 """The complete promise of every public name: signature, fields, members, errors, pickles.
 
-The signatures, fields and defaults are those of 0.2.0, kept for 1.0.0.
+The parameter names, fields and defaults are those of 0.2.0, kept for 1.0.0; only the
+``data`` and ``body`` annotations of the multipart functions were widened.
 """
 
 from __future__ import annotations
