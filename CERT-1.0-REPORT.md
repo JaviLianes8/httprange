@@ -13,8 +13,8 @@ Progress:
 - [x] Contract, fuzz and author mutation round (items 6, 9, 18)
 - [x] Docs: README, GUIDE, CHANGELOG (items 11, 12)
 - [x] Packaging, e2e and upgrade from PyPI 0.2.0, every Python (items 8, 10, 13, 14)
-- [ ] Five QA lenses report PASS (item 19): rounds 1 to 8 findings fixed, re-verification pending
-- [ ] Independent reviewer reports PASS (item 16)
+- [x] Five QA lenses report PASS (item 19): every finding of rounds 1 to 10 fixed and re-verified
+- [x] Independent reviewer reports PASS (item 16), at 0e51b47
 - [x] Gates (item 15), run at ae86f77
 - [ ] PR #3 open from `release/1.0.0`, trace guard CLEAN (item 17); merge and publish left to the maintainer
 
@@ -469,3 +469,79 @@ machine, not hidden.
 
 None in round 1. None in round 2. None in round 3. None in round 4. None in round 5.
 None in round 6. None in round 7. None in round 8. None in round 9. None in round 10.
+
+## Final verdicts
+
+### QA lenses (item 19)
+
+Each lens ran in its own private working folder on the maintainer's machines; the report
+paths below are relative to that folder and are not part of the repository.
+
+| Lens | Rounds | Final verdict | Report | Commit |
+| --- | --- | --- | --- | --- |
+| a. API and docs | 2 | PASS | `httprange-cert/lens-a-r2/REPORT.md` | da29284 |
+| b. Correctness and ground truth | 1 | PASS | summary below (no separate report file) | 4aa8bbc |
+| c. Adversarial and robustness | 2 | PASS | `httprange-cert/lens-c-r2/probes2/sweep-3.13.out` | da29284 |
+| d. Packaging and real e2e | 1 | PASS | `httprange-cert/lens-d-r1/REPORT.md` | 4aa8bbc |
+| e. Contract strength | 6 | PASS | `httprange-cert/lens-e-r6/mutation-run.log` | 0e51b47 |
+
+Lens b, final pass at 4aa8bbc, with sources fetched live on 2026-10-19 (RFC 9110 text,
+RFC 2046 text, erratum 7306 and the full RFC 9110 errata list, each recorded by sha256):
+
+- `parse_range_request` against an oracle compiled from the Appendix A grammar with
+  erratum 7306 and the 5.6.1.2 list form: about 188,000 headers and every RFC example.
+- `resolve_ranges` against the 14.1.2 rules, a brute-force model of overlap depth and
+  coalescing at gaps 0, 1, 3 and 7 keeping request order, and range-parser 1.2.1 on
+  Node.js: 20,000 cases, 12,200 of them through Node.js.
+- `Content-Range` parse and build, `Accept-Ranges`, the three HTTP-date formats and the
+  fifty-year boundary, `format_http_date`, and If-Range with the rows of RFC 9110
+  Table 3: about 30,000 cases each.
+- The .NET 9 `System.Net.Http` and `Microsoft.Net.Http.Headers` parsers gave the same
+  values whenever both sides accepted an input.
+- `evaluate_range_request` against a decision function written from RFC 9110 13.1.5,
+  14.2, 15.3.7 and 15.5.17: 37,500 cases. Against a live Kestrel server (3,000 requests)
+  every difference was a place where ASP.NET departs from the RFC and the library follows
+  it (date If-Range compared with `<=`, unknown units served, a trailing comma read as
+  several ranges, overflow on a 20-digit position).
+- `multipart/byteranges` bodies built by the library parse with the standard `email`
+  parser; the 15.3.7.2 example and the RFC 2046 edge cases (preamble, padding, quoted
+  and `bchars` boundaries, epilogue) pass.
+- Single-range and multipart 206 replies from live nginx and Cloudflare servers, and 416
+  replies from other live servers (13 URLs), parsed and compared byte for byte with the
+  full downloads; every decision matched nginx.
+- The 0.1 API, the CLI examples and the large-numeral cases are correct.
+
+No mismatch. Five documented behaviours were noted and are not findings: the RFC 14.6
+`exampleunit 1.2-4.3` example is refused because it contradicts the 14.4 grammar (no
+erratum exists); the day name of a date is not checked; If-Range dates are compared as
+instants; positions longer than 4000 digits raise a typed error; the 0.1 API raises on an
+empty body.
+
+### Independent review (item 16)
+
+Round 1 at 0e51b47, from a fresh clone on another machine: the full suite with the
+fetched sources, the 0.2.0 oracle, Node.js, werkzeug, aiohttp and both e2e switches
+(`pytest` exit 0), the interpreter matrix, `python -m build` and `twine check --strict`
+(both artifacts PASSED), a consumer run from the installed wheel, and its own mutants.
+
+| # | Item | Verdict |
+| --- | --- | --- |
+| 1 | Public API reviewed for stability | PASS |
+| 2 | `__all__` exact, no private imports in docs | PASS |
+| 3 | Docstrings with runnable examples, doctests pass | PASS |
+| 4 | Typed end to end | PASS |
+| 5 | Typed, documented, bounded errors | PASS |
+| 6 | Contract tests of every public name | PASS |
+| 7 | Real ground truth | PASS |
+| 8 | Real e2e from the wheel, upgrade from PyPI | PASS |
+| 9 | Seeded fuzz, no crash, hang or blowup | PASS |
+| 10 | Supported Pythons | PASS |
+| 11 | README and `twine check` | PASS |
+| 12 | Dated CHANGELOG section | PASS |
+| 13 | pyproject 1.0.0, Production/Stable | PASS |
+| 14 | sdist and wheel contents | PASS |
+| 15 | Gates each exit 0 | PASS |
+| 16 | Independent review | PASS |
+| 17 | PR from `release/1.0.0`; merge and publish left to the maintainer | PASS |
+| 18 | Contracts bite (mutations) | PASS |
+| 19 | Five independent QA lenses | PASS |
