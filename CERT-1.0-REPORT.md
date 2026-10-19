@@ -13,7 +13,7 @@ Progress:
 - [x] Contract, fuzz and author mutation round (items 6, 9, 18)
 - [x] Docs: README, GUIDE, CHANGELOG (items 11, 12)
 - [x] Packaging, e2e and upgrade from PyPI 0.2.0, every Python (items 8, 10, 13, 14)
-- [ ] Five QA lenses report PASS (item 19): rounds 1 and 2 findings fixed, re-verification pending
+- [ ] Five QA lenses report PASS (item 19): rounds 1 to 3 findings fixed, re-verification pending
 - [ ] Independent reviewer reports PASS (item 16)
 - [x] Gates (item 15), run at ae86f77
 - [ ] PR #3 open from `release/1.0.0`, trace guard CLEAN (item 17); merge and publish left to the maintainer
@@ -250,6 +250,32 @@ Commit: dba3cf5 (fixes and contracts). Gates at dba3cf5 on the other machine (CP
 fetched sources, the 0.2.0 oracle, Node.js, werkzeug, aiohttp, curl and both e2e
 switches: 1072 passed, no skip).
 
+### Round 3 (at e95782c): lens e, 6 findings, all fixed
+
+Lens e re-verified its G1 to G10 as fixed (N05, N11, N17, N19, N21, N28, N29, N34 and N37
+killed by the default gate; N36 killed on CPython 3.10.19 and unreachable on 3.14, where
+argparse swallows the error) and reported six surviving probes on the round 2 code. All
+six were gaps in the tests, not wrong behaviour, so no library code and no CHANGELOG
+entry changed. None was disputed.
+
+| Lens / id | Finding | Fix | Contract |
+| --- | --- | --- | --- |
+| e E1 (P09) | No `RangeRequest` spec that has `start` and `end` but is not a `RangeSpec` | Test added with a named tuple of those fields | `test_range_request_refuses_a_spec_lookalike` |
+| e E2 (P10) | The lower-cased unit was only tested through `parse_range_request` | Test constructs `RangeRequest` with `Bytes` and `ITEMS` | `test_range_request_stores_the_unit_lower_cased` |
+| e E3 (P16) | The tuple branch of the plain item copy was not tested with a tuple subclass that overrides `__iter__` | Tuple subclass added next to the list one | `test_subclasses_cannot_steer_a_result` |
+| e E4 (P17) | The 40-character cut of type names in wrong-type errors was untested | Test passes an object whose type name is 5000 characters and asserts the exact message | `test_a_wrong_type_error_cuts_a_huge_type_name` |
+| e E5 (P18) | No `bytearray` subclass with its own `__bytes__` | Subclass added; `data` stays `b"ab"` | `test_subclasses_cannot_steer_a_result` |
+| e E6 (P20) | A plain `bytearray` subclass as part data was untested | Subclass added in the same test | same test |
+
+Mutation check of this round, one mutant at a time against `test_robustness.py` and
+`test_contract_inputs.py` on this PC (CPython 3.13): P09, P10, P16, P17, P18 and P20 are
+all killed.
+
+Commit: d96a277 (contracts). Gates at d96a277 on the other machine (CPython 3.14.2, fresh
+clone and venv): `ruff format --check .`, `ruff check .` and `mypy --strict src` exit 0,
+and `pytest` exits 0 (751 passed, 324 skipped: the optional sources, oracles and e2e
+switches are off in the default run). `mypy --strict tests` is clean on this PC.
+
 ### Disputed findings
 
-None in round 1. None in round 2.
+None in round 1. None in round 2. None in round 3.
