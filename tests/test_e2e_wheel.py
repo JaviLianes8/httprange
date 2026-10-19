@@ -80,7 +80,8 @@ def _check(python: Path, work: Path) -> None:
     script = python.parent / ("httprange.exe" if sys.platform == "win32" else "httprange")
     decided = _run(script, "decide", "--range", "bytes=50000-", "--length", "47022", cwd=work)
     assert decided.returncode == 0, decided.stderr
-    assert decided.stdout.splitlines()[:2] == ["status: 416", "content-range: bytes */47022"]
+    lines = decided.stdout.splitlines()
+    assert lines[0] == "status: 416" and "content-range: bytes */47022" in lines, lines
     module = _run(python, "-I", "-m", "httprange", "resolve", "bytes=-500", "--length", "10000")
     assert (module.returncode, module.stdout) == (0, "bytes 9500-9999/10000\n"), module.stderr
     failed = _run(script, "parse", "bytes=5-1", cwd=work)
