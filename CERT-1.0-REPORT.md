@@ -13,7 +13,7 @@ Progress:
 - [x] Contract, fuzz and author mutation round (items 6, 9, 18)
 - [x] Docs: README, GUIDE, CHANGELOG (items 11, 12)
 - [x] Packaging, e2e and upgrade from PyPI 0.2.0, every Python (items 8, 10, 13, 14)
-- [ ] Five QA lenses report PASS (item 19): round 1 findings fixed, re-verification pending
+- [ ] Five QA lenses report PASS (item 19): rounds 1 and 2 findings fixed, re-verification pending
 - [ ] Independent reviewer reports PASS (item 16)
 - [x] Gates (item 15), run at ae86f77
 - [ ] PR #3 open from `release/1.0.0`, trace guard CLEAN (item 17); merge and publish left to the maintainer
@@ -213,6 +213,43 @@ branch): `ruff format --check .`, `ruff check .`, `mypy --strict src`,
 320 skipped; with the upstream files fetched at 3051b81: 1016 passed, 39 skipped).
 `scripts/check.ps1 -Full` exits 0 at 3051b81: 1055 passed, no skip.
 
+### Round 2 (at cdf7fa7): lenses a, c and e, 13 findings, all fixed
+
+Lens a re-verified its F1 to F5 as fixed and reported F6. Lens c re-verified its F1 to
+F4 as fixed and reported N1. Lens e re-verified its F1 to F11 as fixed (every earlier
+mutant now killed by the default gate) and reported ten surviving mutants, G1 to G10.
+None was disputed.
+
+| Lens / id | Finding | Fix | Contract |
+| --- | --- | --- | --- |
+| a F6 | Wrong-type errors said "a tuple" and "bytes" for arguments that also take a list, `bytearray` or `memoryview` | Messages say "a tuple or list" and "bytes, bytearray or memoryview"; CHANGELOG lists the checks | `test_a_wrong_type_error_names_every_accepted_type` |
+| c N1 | `RangeRequest` kept `RangeSpec` subclasses, so `str()` used their `__str__` (CR/LF or a crash) | `RangeRequest` stores plain `RangeSpec` copies, like every other value class; CHANGELOG updated | `test_a_range_request_stores_plain_specs_and_prints_their_fields` |
+| e G1 | `ContentRange` repr of a huge `complete_length` under a digit limit untested | Test added | `test_every_field_of_a_span_and_a_policy_prints_under_the_digit_limit` |
+| e G2 | `RangePolicy` repr of huge fields under a digit limit untested | Test added | same test |
+| e G3 | `BytePart` copy of a `ContentRange` subclass untested | Test added | `test_a_part_stores_a_plain_content_range` |
+| e G4 | Part copy in `encode_multipart_byteranges` untested | Test added: a part whose `data` changes after construction is refused | `test_encode_rechecks_each_part_as_it_reads_now` |
+| e G5 | Policy copy in `resolve_ranges` untested | Test added: a policy whose `coalesce_gap` turns negative is refused | `test_resolve_rechecks_a_policy_as_it_reads_now` |
+| e G6 | `fold` of an ambiguous local time not pinned | Test added for `when`, `last_modified` and `now` | `test_the_fold_picks_the_reading_of_an_ambiguous_local_time` |
+| e G7 | Microseconds not pinned through the UTC move | Test added | `test_microseconds_count_when_moving_to_utc` |
+| e G8 | `OverflowError` path of the UTC move untested | Test added at both ends of the year range for `when`, `now`, `last_modified` | `test_a_moment_outside_the_utc_years_raises_range_error` |
+| e G9 | A print that fails (not only the flush) untested | Test added with a standard output that fails on write | `test_a_failing_print_gives_exit_1` |
+| e G10 | The `OSError` branch around argument parsing untested (reachable on 3.10) | Test added with a standard output that fails on write | `test_help_into_a_failing_stdout_gives_exit_1` |
+
+Mutation check of this round, one mutant at a time against `test_contract_copies.py`,
+`test_cli_contract.py` and `test_contract_objects.py`, on this PC (CPython 3.13; G10 on
+CPython 3.10.19, where the branch is reachable): G1 to G10 and N1 (specs kept as given)
+are all killed. The F6 and N1 contracts failed on cdf7fa7 before the fix.
+
+Lens a also noted, as not a finding, that `test_every_private_module_example_runs`
+attempts no examples now that the package-level doctest run covers them; it is kept as a
+guard against an example being added to a private module only.
+
+Commit: dba3cf5 (fixes and contracts). Gates at dba3cf5 on the other machine (CPython
+3.14.2, fresh clone and venv): `scripts/check.ps1 -Full` exits 0 (`ruff format --check .`,
+`ruff check .`, `mypy --strict src`, `mypy --strict tests`, then `pytest` with the
+fetched sources, the 0.2.0 oracle, Node.js, werkzeug, aiohttp, curl and both e2e
+switches: 1072 passed, no skip).
+
 ### Disputed findings
 
-None in round 1.
+None in round 1. None in round 2.
