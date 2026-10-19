@@ -441,7 +441,31 @@ clone from GitHub and fresh venv): `ruff format --check .`, `ruff check .`,
 `mypy --strict src`, `mypy --strict tests` and `pytest` (with `--timeout 300`, 931 passed,
 332 skipped) all exit 0.
 
+### Round 10 (at 2ae4599): lens e, 1 finding, fixed
+
+Lens e confirmed the round 9 pin kills its mutant (R07, the exact-type bytes gate in
+`_resolve._specs`) and ran a fresh sweep (S01 to S10) on `_resolve._specs` and
+`_multipart._items_of`: every mutant but S06 was killed. No behaviour changed in this round
+and no source file was edited: the finding was a missing default-suite contract on a
+refusal the code already made (it was asserted only by the opt-in 0.2.0 comparison).
+
+| Finding | What was missing | Fix | Pinning test |
+|---|---|---|---|
+| e S06 | `resolve_ranges` refusing an empty spec iterable with `MalformedRange` ("no range specs to resolve"); with the check removed the empty input fell through to `UnsatisfiableRange` and only `test_upgrade_changes_wire.py` (skipped without the 0.2.0 oracle) noticed | Added `[]`, `()`, `iter([])` and an empty generator, each with lengths 10 and 0, each raising exactly `MalformedRange` (not a subclass) with "no range specs to resolve" | `test_resolve_ranges_refuses_no_specs_as_malformed` |
+
+Mutation check of this round: with `if not specs:` in `_resolve._specs` changed to
+`if False:`, all 8 new cases fail (8 failed, 42 passed in `test_contract_pins_inputs.py`);
+with the source restored they pass.
+
+Commit: 3312f46 (pin). Gates at 3312f46 on the laptop (CPython 3.14, fresh clone from
+GitHub and fresh venv): `ruff format --check .`, `ruff check .`, `mypy --strict src`,
+`mypy --strict tests` and `pytest` (with `--timeout 300`, 939 passed, 332 skipped) all
+exit 0. The first full run there had one setup error in `test_e2e_cli.py` (a
+`FileNotFoundError` while the module fixture built the wheel); the file alone and two
+further full runs on the same clone were green, so it is recorded as a transient of that
+machine, not hidden.
+
 ### Disputed findings
 
 None in round 1. None in round 2. None in round 3. None in round 4. None in round 5.
-None in round 6. None in round 7. None in round 8. None in round 9.
+None in round 6. None in round 7. None in round 8. None in round 9. None in round 10.
