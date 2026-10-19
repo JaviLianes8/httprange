@@ -13,7 +13,7 @@ Progress:
 - [x] Contract, fuzz and author mutation round (items 6, 9, 18)
 - [x] Docs: README, GUIDE, CHANGELOG (items 11, 12)
 - [x] Packaging, e2e and upgrade from PyPI 0.2.0, every Python (items 8, 10, 13, 14)
-- [ ] Five QA lenses report PASS (item 19): rounds 1 to 6 findings fixed, re-verification pending
+- [ ] Five QA lenses report PASS (item 19): rounds 1 to 7 findings fixed, re-verification pending
 - [ ] Independent reviewer reports PASS (item 16)
 - [x] Gates (item 15), run at ae86f77
 - [ ] PR #3 open from `release/1.0.0`, trace guard CLEAN (item 17); merge and publish left to the maintainer
@@ -373,7 +373,30 @@ on the other machine (CPython 3.14.2, fresh clone and venv): `ruff format --chec
 switches are off in the default run). The 0.2.0 differential (`test_upgrade*.py`) passes
 on this PC with `HTTPRANGE_V02` set.
 
+### Round 7 (at da29284): lens e, 5 findings, all fixed
+
+No behaviour changed in this round: every finding was a missing contract. The only
+source edit is one sentence in the `resolve_ranges` docstring that states the refusal
+pinned for N5.
+
+| Finding | What was missing | Fix | Pinning test |
+|---|---|---|---|
+| e N1 (S03) | `ByteRange.overlaps` on a shared edge byte in the reverse order and for two equal one-byte ranges | Symmetry pinned on touching, nested, equal and disjoint pairs, both orders | `test_overlaps_is_symmetric_and_counts_a_shared_edge_byte` |
+| e N2 (S12) | A short message for a huge malformed `last_modified` (item 5) | A one-million-character value through `if_range_matches` and both `evaluate_range_request` paths gives a message of at most 120 characters | `test_a_huge_malformed_last_modified_gives_a_short_message` |
+| e N3 (S27) | `decide --etag` | An entity-tag If-Range that matches `--etag` gives 206, one that differs gives 200 | `test_cli_decide_passes_the_etag` |
+| e N4 (S24) | Text refused as the list for the empty string and a str subclass | `""`, `"ab"` and a str subclass refused by both multipart builders with the exact class and message | `test_text_is_refused_as_the_ranges_of_build_multipart`, `test_text_is_refused_as_the_parts_of_encode_multipart` |
+| e N5 (S25) | An object iterable only through `__getitem__` | Kept the refusal (`MalformedRange`, the documented message), pinned it and documented it in the `resolve_ranges` docstring | `test_resolve_ranges_refuses_an_object_iterable_only_by_index` |
+
+The pins are in `tests/test_contract_pins_inputs.py`. Mutation check of this round (one
+mutant at a time in a scratch copy, lens e's replacements, against the new test file):
+S03, S12, S24, S25 and S27 are all killed.
+
+Commit: 14c519b (pins and the docstring sentence). Gates at 14c519b on the other machine
+(CPython 3.14.2, fresh clone from GitHub and fresh venv): `ruff format --check .`,
+`ruff check .`, `mypy --strict src`, `mypy --strict tests` and `pytest` (with
+`--timeout 300`) all exit 0.
+
 ### Disputed findings
 
 None in round 1. None in round 2. None in round 3. None in round 4. None in round 5.
-None in round 6.
+None in round 6. None in round 7.
