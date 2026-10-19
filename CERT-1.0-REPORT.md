@@ -276,6 +276,29 @@ clone and venv): `ruff format --check .`, `ruff check .` and `mypy --strict src`
 and `pytest` exits 0 (751 passed, 324 skipped: the optional sources, oracles and e2e
 switches are off in the default run). `mypy --strict tests` is clean on this PC.
 
+### Round 4 (at 31cc7a0): lens e, 5 findings, all fixed
+
+Lens e re-verified E1 to E6 as fixed (P09, P10, P16, P17, P18 and P20 killed) and ran 34
+new probes; 12 survived, grouped into five findings. All five were gaps in the tests, not
+wrong behaviour: on the round 3 code each repro already gives the documented error. No
+library code and no CHANGELOG entry changed. None was disputed.
+
+| Lens / id | Finding | Fix | Contract |
+| --- | --- | --- | --- |
+| e R4-1 (Q27, Q30) | A `RangeDecision` range or `BytePart` content range with the right fields but the wrong type was untested | Named tuples with those fields are refused | `test_range_decision_refuses_a_byte_range_lookalike`, `test_byte_part_refuses_a_content_range_lookalike` |
+| e R4-2 (Q17, Q28) | No test put a wrong item after a valid one | The bad item comes second in both tests | `test_range_request_checks_every_spec_not_only_the_first`, `test_range_decision_checks_every_range_not_only_the_first` |
+| e R4-3 (Q20) | `RangeRequest.other` item types were not pinned | A non-str item raises `MalformedRange`; a str subclass is stored as a plain str | `test_range_request_refuses_a_non_str_other_item`, `test_range_request_stores_other_items_as_plain_str` |
+| e R4-4 (Q21 to Q26) | The 40-character type-name cut was pinned only in `_wrong` | One parametrized test over the eleven entry points that report a type: every message ends in 40 characters of the name and never holds 41 | `test_every_type_error_cuts_a_huge_type_name` |
+| e R4-5 (Q03) | The name in wrong-type messages was not pinned against the qualified name | A class defined inside a function is reported by its plain name | `test_a_type_error_names_the_class_not_its_qualified_name` |
+
+All in `tests/test_contract_item_types.py`. Mutation check of this round, one mutant at a
+time against that file on this PC (CPython 3.13): Q03, Q17, Q20, Q21 to Q28 and Q30 are
+all killed.
+
+Commit: the commit that adds `tests/test_contract_item_types.py`. Gates on that tree on the
+other machine (CPython 3.14.2, fresh venv): `ruff format --check .`, `ruff check .`,
+`mypy --strict src`, `mypy --strict tests` and `pytest` (with `--timeout 300`) all exit 0.
+
 ### Disputed findings
 
-None in round 1. None in round 2. None in round 3.
+None in round 1. None in round 2. None in round 3. None in round 4.
