@@ -13,7 +13,7 @@ Progress:
 - [x] Contract, fuzz and author mutation round (items 6, 9, 18)
 - [x] Docs: README, GUIDE, CHANGELOG (items 11, 12)
 - [x] Packaging, e2e and upgrade from PyPI 0.2.0, every Python (items 8, 10, 13, 14)
-- [ ] Five QA lenses report PASS (item 19): rounds 1 to 7 findings fixed, re-verification pending
+- [ ] Five QA lenses report PASS (item 19): rounds 1 to 8 findings fixed, re-verification pending
 - [ ] Independent reviewer reports PASS (item 16)
 - [x] Gates (item 15), run at ae86f77
 - [ ] PR #3 open from `release/1.0.0`, trace guard CLEAN (item 17); merge and publish left to the maintainer
@@ -396,7 +396,31 @@ Commit: 14c519b (pins and the docstring sentence). Gates at 14c519b on the other
 `ruff check .`, `mypy --strict src`, `mypy --strict tests` and `pytest` (with
 `--timeout 300`) all exit 0.
 
+### Round 8 (at 8948fb7): lens e, 4 findings, all fixed
+
+Lens e confirmed the round 7 pins (N1 to N5) kill their mutants, then ran a fresh
+mutation sweep (Q01 to Q10): Q01 to Q05 and Q10 were killed, Q06 to Q09 survived. No
+behaviour changed in this round and no source file was edited: every finding was a
+missing contract on a refusal the code already made.
+
+| Finding | What was missing | Fix | Pinning test |
+|---|---|---|---|
+| e Q06 | `bytes` and `bytearray` refused as the ranges or parts list of the multipart builders | `b""`, `b"ab"`, `bytearray()` and `bytearray(b"a")` refused by both builders with the exact class and message | `test_text_is_refused_as_the_ranges_of_build_multipart`, `test_text_is_refused_as_the_parts_of_encode_multipart` |
+| e Q07 | `memoryview` refused as the ranges or parts list | `memoryview(b"")` and `memoryview(b"x")` added to the same two tests | same two tests |
+| e Q08 | An object iterable only through `__getitem__` refused by the multipart builders (the multipart twin of N5) | Refusal pinned for `build_multipart_byteranges` (`RangeError`) and `encode_multipart_byteranges` (`MalformedMultipart`) with the exact message | `test_multipart_builders_refuse_an_object_iterable_only_by_index` |
+| e Q09 | `resolve_ranges` refusing bytes-like input as the ranges | `b""`, `b"ab"`, `bytearray`, `memoryview` refused with `MalformedRange` and "ranges must be a str or RangeSpec items, got <type>" | `test_resolve_ranges_refuses_bytes_as_the_ranges` |
+
+The pins are in `tests/test_contract_pins_inputs.py`. Mutation check of this round (one
+mutant at a time, lens e's replacements, against the new test file, source restored after
+each): Q06 (drop `bytes` from the refusal tuple in `_multipart._items_of`), Q07 (drop
+`memoryview` there), Q08 (drop the `Iterable` gate there) and Q09 (drop `bytes` from the
+refusal tuple in `_resolve._specs`) are all killed.
+
+Commit: 3c6f7e6 (pins). Gates at 3c6f7e6 on the other machine (CPython 3.14.2, fresh
+clone from GitHub and fresh venv): `ruff format --check .`, `ruff check .`,
+`mypy --strict src`, `mypy --strict tests` and `pytest` (with `--timeout 300`) all exit 0.
+
 ### Disputed findings
 
 None in round 1. None in round 2. None in round 3. None in round 4. None in round 5.
-None in round 6. None in round 7.
+None in round 6. None in round 7. None in round 8.
