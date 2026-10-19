@@ -32,7 +32,7 @@ def to_int(text: str, error: type[Exception], context: str) -> int:
         raise error(f"invalid number in {context[:40]!r}")
     significant = text.lstrip("0")
     if len(significant) > MAX_DIGITS:
-        raise error(f"number with more than {MAX_DIGITS} digits in range value")
+        raise error(f"number with more than {MAX_DIGITS} significant digits")
     value = 0
     for start in range(0, len(significant), _CHUNK):
         chunk = significant[start : start + _CHUNK]
@@ -49,6 +49,11 @@ def int_text(value: int) -> str:
         value, low = divmod(value, _CHUNK_SCALE)
         chunks.append(str(low).zfill(_CHUNK))
     return str(value) + "".join(reversed(chunks))
+
+
+def int_repr(value: int | None) -> str:
+    """``repr`` of a non-negative int or ``None``, whatever the interpreter's digit limit."""
+    return "None" if value is None else int_text(value)
 
 
 def describe_int(value: int) -> str:

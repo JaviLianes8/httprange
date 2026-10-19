@@ -29,7 +29,7 @@ from ._numbers import describe_int, int_text, is_token
 from ._resolve import DEFAULT_POLICY, RangePolicy, resolve_ranges
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, init=False)
 class RangeDecision:
     """What to send back: the status code, the ranges to serve and why.
 
@@ -49,6 +49,19 @@ class RangeDecision:
     length: int
     reason: str
 
+    def __init__(
+        self,
+        status: int,
+        ranges: tuple[ByteRange, ...] | list[ByteRange],
+        length: int,
+        reason: str,
+    ) -> None:
+        object.__setattr__(self, "status", status)
+        object.__setattr__(self, "ranges", ranges)
+        object.__setattr__(self, "length", length)
+        object.__setattr__(self, "reason", reason)
+        self.__post_init__()
+
     def __post_init__(self) -> None:
         status = plain_int(self.status, RangeError, "status")
         if status not in (200, 206, 416):
@@ -66,6 +79,12 @@ class RangeDecision:
         object.__setattr__(self, "ranges", ranges)
         object.__setattr__(self, "length", length)
         object.__setattr__(self, "reason", reason)
+
+    def __repr__(self) -> str:
+        return (
+            f"{type(self).__qualname__}(status={int_text(self.status)}, ranges={self.ranges!r}, "
+            f"length={int_text(self.length)}, reason={self.reason!r})"
+        )
 
     @property
     def is_multipart(self) -> bool:
@@ -167,4 +186,5 @@ def _ranges(value: object) -> tuple[ByteRange, ...]:
     for item in items:
         if not issubclass(type(item), ByteRange):
             raise RangeError(f"ranges must hold ByteRange items, got {type_name(item)}")
-    return cast("tuple[ByteRange, ...]", items)
+    # Plain copies, so a subclass's own methods never shape the response headers.
+    return tuple(ByteRange(item.first, item.last) for item in cast("tuple[ByteRange, ...]", items))

@@ -38,6 +38,15 @@ def emit(text: str) -> bool:
     """Print ``text``; False when the reader of standard output has gone away."""
     try:
         print(text)
+    except OSError:
+        _silence_stdout()
+        return False
+    return flush_stdout()
+
+
+def flush_stdout() -> bool:
+    """Flush standard output; False when its reader has gone away."""
+    try:
         sys.stdout.flush()
     except OSError:
         _silence_stdout()

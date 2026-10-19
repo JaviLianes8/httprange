@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
-from typing import cast
+from datetime import date, datetime, timezone
+from typing import Any, cast
 
 from ._checks import plain_str, short, type_name
 from ._errors import MalformedDate, RangeError
@@ -27,7 +27,8 @@ def parse_http_date(value: str, *, now: datetime | None = None) -> datetime:
     The three examples of RFC 9110 5.6.7 give the same instant. A two-digit RFC 850
     year is read as the latest year with those digits that is not more than 50 years
     after ``now`` (an aware ``datetime``, default the current time). A leap second
-    (``:60``) is read as ``:59``, as ``datetime`` cannot hold it. The day name is not
+    (``:60``) is read as ``:59``, as ``datetime`` cannot hold it, though
+    :func:`if_range_matches` still tells the two apart. The day name is not
     checked against the date. Raises :class:`MalformedDate`; a ``now`` that is naive
     or not a ``datetime`` raises :class:`RangeError`.
 
@@ -37,6 +38,11 @@ def parse_http_date(value: str, *, now: datetime | None = None) -> datetime:
     ...     "Sunday, 06-Nov-94 08:49:37 GMT")
     True
     """
+    return read_http_date(value, now)[0]
+
+
+def read_http_date(value: object, now: object = None) -> tuple[datetime, bool]:
+    """Like :func:`parse_http_date`, plus whether the date names a leap second."""
     text = plain_str(value, MalformedDate, "value").strip(OWS)
     clock = None if now is None else to_utc(now, "now")
     if match := _IMF.fullmatch(text):
@@ -54,7 +60,7 @@ def parse_http_date(value: str, *, now: datetime | None = None) -> datetime:
     moment = _moment(int(year), (month, day, hour, minute, second))
     if moment is None:
         raise MalformedDate(f"impossible date: {short(text)}")
-    return moment
+    return moment, second == "60"
 
 
 def format_http_date(when: datetime) -> str:
@@ -75,14 +81,44 @@ def format_http_date(when: datetime) -> str:
 
 
 def to_utc(when: object, name: str) -> datetime:
-    """An aware ``datetime`` converted to UTC, or :class:`RangeError`."""
-    moment = cast(datetime, when)
-    if not issubclass(type(when), datetime) or moment.utcoffset() is None:
+    """An aware ``datetime`` converted to UTC, or :class:`RangeError`.
+
+    The fields are read through the base class, so a subclass with its own methods
+    cannot steer the result; an invalid offset from the ``tzinfo`` raises
+    :class:`RangeError`.
+    """
+    if not issubclass(type(when), datetime):
+        raise RangeError(f"{name} must be a timezone-aware datetime, got {type_name(when)}")
+    moment = _plain(cast(datetime, when))
+    try:
+        offset = moment.utcoffset()
+    except (ValueError, TypeError):
+        raise RangeError(f"{name} has a tzinfo with an invalid UTC offset") from None
+    if offset is None:
         raise RangeError(f"{name} must be a timezone-aware datetime, got {type_name(when)}")
     try:
-        return moment.astimezone(timezone.utc)
+        return (moment.replace(tzinfo=None) - offset).replace(tzinfo=timezone.utc)
     except OverflowError:
         raise RangeError(f"{name} is outside the years 1 to 9999 in UTC") from None
+
+
+def _plain(moment: datetime) -> datetime:
+    """A plain ``datetime`` with the fields of ``moment``, past any subclass override."""
+    return datetime(
+        _read(date, "year", moment),
+        _read(date, "month", moment),
+        _read(date, "day", moment),
+        _read(datetime, "hour", moment),
+        _read(datetime, "minute", moment),
+        _read(datetime, "second", moment),
+        _read(datetime, "microsecond", moment),
+        tzinfo=_read(datetime, "tzinfo", moment),
+        fold=_read(datetime, "fold", moment),
+    )
+
+
+def _read(owner: type, name: str, moment: datetime) -> Any:
+    return vars(owner)[name].__get__(moment, owner)
 
 
 def _moment(year: int, fields: _Fields) -> datetime | None:

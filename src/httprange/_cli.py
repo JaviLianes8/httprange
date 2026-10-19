@@ -9,7 +9,7 @@ from typing import NoReturn
 
 from . import __version__
 from ._checks import short
-from ._cli_io import cut, emit, to_json
+from ._cli_io import cut, emit, flush_stdout, to_json
 from ._content_range import build_content_range, parse_content_range
 from ._decision import evaluate_range_request
 from ._errors import RangeError
@@ -156,13 +156,23 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Run the command line tool and return its exit status.
 
     0 on success; 1 for an error (printed on standard error) or when the reader of
-    standard output has gone away. ``--help`` and ``--version`` exit with 0.
+    standard output has gone away. ``--help`` and ``--version`` raise ``SystemExit``
+    with 0, or with 1 when that reader has gone away.
     """
     for stream in (sys.stdout, sys.stderr):
         # Echoed input may hold characters the console encoding cannot print.
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(errors="backslashreplace")
-    args = build_parser().parse_args(argv)
+    try:
+        args = build_parser().parse_args(argv)
+    except SystemExit:
+        # --help, --version and usage errors end here; their text is still buffered.
+        if not flush_stdout():
+            raise SystemExit(1) from None
+        raise
+    except OSError:
+        flush_stdout()
+        raise SystemExit(1) from None
     try:
         text = _run(args)
     except RangeError as exc:

@@ -13,7 +13,7 @@ from ._numbers import is_token
 _SINGLE = ("content-range", "content-type")
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, init=False)
 class BytePart:
     """One body part: its ``Content-Range``, its bytes and optional ``Content-Type``.
 
@@ -32,10 +32,22 @@ class BytePart:
     data: bytes
     content_type: str | None = None
 
+    def __init__(
+        self,
+        content_range: ContentRange,
+        data: bytes | bytearray | memoryview,
+        content_type: str | None = None,
+    ) -> None:
+        object.__setattr__(self, "content_range", content_range)
+        object.__setattr__(self, "data", data)
+        object.__setattr__(self, "content_type", content_type)
+        self.__post_init__()
+
     def __post_init__(self) -> None:
         span = self.content_range
         if not issubclass(type(span), ContentRange):
             raise MalformedMultipart(f"content_range must be a ContentRange, got {type_name(span)}")
+        span = ContentRange(span.unit, span.first, span.last, span.complete_length)
         data = plain_bytes(self.data, MalformedMultipart, "data")
         content_type = optional_str(self.content_type, MalformedMultipart, "content_type")
         if not span.is_satisfied:
@@ -46,11 +58,12 @@ class BytePart:
             )
         if content_type is not None:
             check_field_value(content_type)
+        object.__setattr__(self, "content_range", span)
         object.__setattr__(self, "data", data)
         object.__setattr__(self, "content_type", content_type)
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, init=False)
 class MultipartBody:
     """An encoded ``multipart/byteranges`` body and its ``Content-Type`` header value.
 
@@ -65,6 +78,14 @@ class MultipartBody:
     content_type: str
     body: bytes
     boundary: str
+
+    def __init__(
+        self, content_type: str, body: bytes | bytearray | memoryview, boundary: str
+    ) -> None:
+        object.__setattr__(self, "content_type", content_type)
+        object.__setattr__(self, "body", body)
+        object.__setattr__(self, "boundary", boundary)
+        self.__post_init__()
 
     def __post_init__(self) -> None:
         content_type = plain_str(self.content_type, MalformedMultipart, "content_type")

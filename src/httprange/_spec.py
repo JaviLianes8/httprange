@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from ._byterange import ByteRange
 from ._checks import optional_bounded_int, plain_str, short, size
 from ._errors import MalformedRange, RangeError, UnsatisfiableRange
-from ._numbers import describe_int, int_text, to_int
+from ._numbers import describe_int, int_repr, int_text, to_int
 
 UNIT = "bytes"
 
@@ -91,6 +91,9 @@ class RangeSpec:
         first, last = self.resolve(total)
         return ByteRange(first, last)
 
+    def __repr__(self) -> str:
+        return f"{type(self).__qualname__}(start={int_repr(self.start)}, end={int_repr(self.end)})"
+
     def __str__(self) -> str:
         """The spec as it appears in a header: ``'0-499'``, ``'1000-'`` or ``'-500'``."""
         first = "" if self.start is None else int_text(self.start)
@@ -122,8 +125,11 @@ def resolve(header: str, total: int) -> list[tuple[int, int]]:
     """Parse ``header`` and resolve every satisfiable spec against ``total``.
 
     Unsatisfiable specs are dropped, as a server may serve the rest. Raises
-    :class:`UnsatisfiableRange` when none can be satisfied, the RFC 9110 case for a
-    416 response. See :func:`resolve_ranges` for the policy-aware version.
+    :class:`UnsatisfiableRange` when no spec resolves to a byte. On a non-empty
+    representation that is the RFC 9110 case for a 416 response. On an empty
+    representation (``total == 0``) every spec raises, as in 0.1, although RFC 9110
+    14.1.2 calls a non-zero suffix-range such as ``bytes=-5`` satisfiable there:
+    :func:`resolve_ranges`, the policy-aware version, returns ``()`` for it.
 
     >>> resolve("bytes=0-0,-1,20000-", 10000)
     [(0, 0), (9999, 9999)]

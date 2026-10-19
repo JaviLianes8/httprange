@@ -1,15 +1,19 @@
 # Build and upload to PyPI. Run scripts/check.ps1 first.
-# The name must not already exist on PyPI; the token is read from a secret store, never git.
+# Refuses a version that is already on PyPI; the token is read from a secret store, never git.
 $ErrorActionPreference = "Stop"
 
+$init = Get-Content "src/httprange/__init__.py" -Raw
+if ($init -notmatch '__version__ = "([^"]+)"') { throw "No __version__ in src/httprange/__init__.py." }
+$version = $Matches[1]
+
 # Works on both Windows PowerShell 5.1 and pwsh 7 (generic catch, no PS7-only types).
-$taken = $true
+$published = $true
 try {
-    Invoke-WebRequest -UseBasicParsing "https://pypi.org/pypi/httprange/json" | Out-Null
+    Invoke-WebRequest -UseBasicParsing "https://pypi.org/pypi/httprange/$version/json" | Out-Null
 } catch {
-    if ($_.Exception.Response.StatusCode.value__ -eq 404) { $taken = $false } else { throw }
+    if ($_.Exception.Response.StatusCode.value__ -eq 404) { $published = $false } else { throw }
 }
-if ($taken) { throw "The name 'httprange' already exists on PyPI. Choose another before publishing." }
+if ($published) { throw "httprange $version is already on PyPI. Bump the version before publishing." }
 
 $token = $env:PYPI_TOKEN
 if (-not $token -and (Test-Path "C:\secrets\pypi-token.txt")) {

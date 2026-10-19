@@ -43,7 +43,8 @@ class UnsatisfiableRange(RangeError):
     """
 
     def __init__(self, message: str, length: int | None = None) -> None:
-        super().__init__(message, length)
+        # Only the message goes to ``args``, so ``repr`` stays short and printable.
+        super().__init__(message)
         self.length = length
 
     def __str__(self) -> str:
@@ -65,7 +66,7 @@ class UnsupportedRangeUnit(RangeError):
     """
 
     def __init__(self, message: str, unit: str = "") -> None:
-        super().__init__(message, unit)
+        super().__init__(message)
         self.unit = unit
 
     def __str__(self) -> str:

@@ -148,4 +148,28 @@ exit 0.
 
 ## QA lenses (item 19) and independent review (item 16)
 
-Pending: run by fresh agents after this preparation stage.
+### Round 1 (at 5c39f0e): 5 lenses, 25 findings, all fixed
+
+Verdicts: a (API and docs) 5 findings, b (correctness) 2, c (adversarial) 4,
+d (packaging and e2e) 3, e (contract strength) 11. None was disputed.
+
+| Lens / id | Finding | Fix | Contract |
+| --- | --- | --- | --- |
+| a F1 | Docstring, README and GUIDE examples were not run by the gate; the e2e handler was a copy | Public functions report `httprange` as their module (`doctest.testmod(httprange)`: 75 examples); README and GUIDE blocks run with their claims checked; the e2e server runs the GUIDE handler from the file | `test_docs.py`, `range_server.py` |
+| a F2 | `BytePart`, `MultipartBody`, `RangeDecision`, `RangeRequest` annotations rejected documented inputs | Explicit `__init__` taking `bytes`/`bytearray`/`memoryview` and lists; fields unchanged | `test_contract_inputs.py` (part of `mypy --strict tests`) |
+| a F3 | GUIDE: the 4000-digit cap counts significant digits only | GUIDE, CHANGELOG and the error message say so | `test_the_digit_cap_counts_significant_digits_only` |
+| a F4 | Two CHANGELOG 1.0.0 statements did not match 0.2.0 | Reworded after running both releases (416 came from a comma count; only non-token methods are quoted) | wire tests unchanged |
+| a F5 | README: `content_range` is also `None` for a 200 | Comment fixed and checked by the README runner | `test_readme_quick_start_comment_holds_for_every_status` |
+| b F1 | A leap second `:60` matched `:59` in If-Range | Date parse keeps a leap flag; dates match only with equal flags | `test_a_leap_second_*` |
+| b F2 | `resolve()` doc called its empty-body raise the RFC 416 case | 0.1 behaviour kept and documented, pointing to `resolve_ranges` | `test_legacy_resolve_refuses_every_spec_on_an_empty_representation` |
+| c F1 | `to_utc` used the subclass's `astimezone`/`utcoffset`; invalid offsets leaked `ValueError`/`TypeError` | Fields read through the `datetime` descriptors, offset by the base method, errors mapped to `RangeError` | `test_contract_objects.py` |
+| c F2 | Subclass `byte_range`/`as_slice` overrides steered results | Caller subclasses of `RangeSpec`, `ByteRange`, `ContentRange`, `BytePart`, `RangePolicy` copied to plain instances | `test_contract_objects.py` |
+| c F3 | `repr` failed under `sys.set_int_max_str_digits(640)` | Own `__repr__` with `int_text`; error args hold the message only | `test_*_print_under_the_smallest_digit_limit` |
+| c F4 | `repr(UnsupportedRangeUnit)` echoed the whole unit | `args == (message,)` | `test_error_args_hold_the_message_only` |
+| d F1 | `--help`/`--version` exited 120 with a closed reader | Argparse exits flush through the same guard: exit 1, nothing on stderr | `test_cli_contract.py` (closed pipe, subprocess) |
+| d F2 | `release.ps1` refused any existing project name | Refuses only an already published version (guard run against live PyPI: 1.0.0 passes, 0.2.0 refused) | script |
+| d F3 | Opt-in tests were undocumented and silently skipped | CONTRIBUTING lists them; `check.ps1 -Full` fetches, sets them and fails on any skip (`HTTPRANGE_FULL=1`) | `conftest.py` hook |
+| e F1 to F10 | M10, M11, M56, M73, M75, M84, M86, M85, M66, M67 survived the default gate | New always-run contracts | `test_contract_edges.py`, `test_cli_contract.py` |
+| e F11 | M39, M51, M64, M68, M72, M74 were caught only by opt-in tests | Self-contained copies, written by hand from the grammar | `test_contract_edges.py` |
+
+Every behaviour change is listed in the CHANGELOG 1.0.0 section.

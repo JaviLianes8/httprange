@@ -15,7 +15,7 @@ from ._errors import (
     UnsupportedRangeUnit,
 )
 from ._grammar import MAX_EMPTY_ELEMENTS, bytes_spec, split_request
-from ._numbers import describe_int
+from ._numbers import describe_int, int_text
 from ._spec import UNIT, RangeSpec
 
 
@@ -55,6 +55,13 @@ class RangePolicy:
         object.__setattr__(self, "coalesce", coalesce)
         object.__setattr__(self, "coalesce_gap", gap)
 
+    def __repr__(self) -> str:
+        return (
+            f"{type(self).__qualname__}(max_ranges={int_text(self.max_ranges)}, "
+            f"max_overlapping={int_text(self.max_overlapping)}, coalesce={self.coalesce!r}, "
+            f"coalesce_gap={int_text(self.coalesce_gap)})"
+        )
+
 
 DEFAULT_POLICY = RangePolicy()
 
@@ -84,6 +91,10 @@ def resolve_ranges(
     length = size(length, RangeError, "length")
     if not issubclass(type(policy), RangePolicy):
         raise RangeError(f"policy must be a RangePolicy, got {type_name(policy)}")
+    # Plain copies: a subclass with its own methods or properties cannot steer the result.
+    policy = RangePolicy(
+        policy.max_ranges, policy.max_overlapping, policy.coalesce, policy.coalesce_gap
+    )
     specs = _specs(ranges, policy.max_ranges)
     if length == 0 and any(spec.is_suffix and spec.end for spec in specs):
         return ()
@@ -119,7 +130,7 @@ def _specs(ranges: object, max_ranges: int) -> list[RangeSpec]:
     for spec in ranges:
         if not issubclass(type(spec), RangeSpec):
             raise MalformedRange(f"ranges must hold RangeSpec items, got {type_name(spec)}")
-        specs.append(spec)
+        specs.append(RangeSpec(spec.start, spec.end))
         _check_count(len(specs), max_ranges)
     if not specs:
         raise MalformedRange("no range specs to resolve")

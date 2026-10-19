@@ -27,33 +27,6 @@ from ._spec import RangeSpec, parse_range, resolve
 
 __version__ = "1.0.0"
 
-# The public classes show and pickle as httprange.<Name>, so a pickle never depends on
-# the private module that defines them.
-for _cls in (
-    BytePart,
-    ByteRange,
-    ContentRange,
-    ExcessiveRanges,
-    MalformedContentRange,
-    MalformedDate,
-    MalformedMultipart,
-    MalformedRange,
-    MultipartBody,
-    RangeDecision,
-    RangeError,
-    RangePolicy,
-    RangeRequest,
-    RangeSpec,
-    UnsatisfiableRange,
-    UnsupportedRangeUnit,
-):
-    _cls.__module__ = __name__
-    # Methods follow, so doctest finds their examples here (it takes properties anyway).
-    for _member in vars(_cls).values():
-        if callable(_member) and str(getattr(_member, "__module__", "")).startswith("httprange._"):
-            _member.__module__ = __name__
-del _cls, _member
-
 __all__ = [
     "BytePart",
     "ByteRange",
@@ -86,3 +59,15 @@ __all__ = [
     "resolve",
     "resolve_ranges",
 ]
+
+# The public names show and pickle as httprange.<name>, so a pickle never depends on the
+# private module that defines them, and doctest.testmod(httprange) finds every example.
+_member = None
+for _name in __all__:
+    _obj = globals()[_name]
+    _obj.__module__ = __name__
+    # Methods follow, so doctest finds their examples here (it takes properties anyway).
+    for _member in vars(_obj).values() if isinstance(_obj, type) else ():
+        if callable(_member) and str(getattr(_member, "__module__", "")).startswith("httprange._"):
+            _member.__module__ = __name__
+del _name, _obj, _member

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from ._checks import optional_bounded_int, plain_str, short
 from ._errors import MalformedContentRange, RangeError
-from ._numbers import OWS, describe_int, int_text, is_token, to_int
+from ._numbers import OWS, describe_int, int_repr, int_text, is_token, to_int
 
 UNIT = "bytes"
 
@@ -106,6 +106,12 @@ class ContentRange:
         if self.first is None or self.last is None:
             return None
         return self.last - self.first + 1
+
+    def __repr__(self) -> str:
+        return (
+            f"{type(self).__qualname__}(unit={self.unit!r}, first={int_repr(self.first)}, "
+            f"last={int_repr(self.last)}, complete_length={int_repr(self.complete_length)})"
+        )
 
     def __str__(self) -> str:
         return build_content_range(self.first, self.last, self.complete_length, unit=self.unit)

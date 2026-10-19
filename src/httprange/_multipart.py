@@ -45,7 +45,8 @@ def build_multipart_byteranges(
     content_type = optional_str(content_type, MalformedMultipart, "content_type")
     total = len(data)
     parts = []
-    for item in _items_of(ranges, ByteRange, RangeError, "ranges"):
+    for given in _items_of(ranges, ByteRange, RangeError, "ranges"):
+        item = ByteRange(given.first, given.last)  # a plain copy, past any override
         if item.last >= total:
             raise RangeError(f"range {short(str(item))} exceeds data of length {total}")
         span = ContentRange("bytes", item.first, item.last, total)
@@ -67,7 +68,8 @@ def encode_multipart_byteranges(
     b'--b\\r\\nContent-Range: bytes 2-3/4\\r\\n\\r\\ncd\\r\\n--b--\\r\\n'
     """
     boundary = optional_str(boundary, MalformedMultipart, "boundary")
-    items = _items_of(parts, BytePart, MalformedMultipart, "parts")
+    given = _items_of(parts, BytePart, MalformedMultipart, "parts")
+    items = [BytePart(part.content_range, part.data, part.content_type) for part in given]
     check_parts(items)
     if boundary is None:
         boundary = secrets.token_hex(16)

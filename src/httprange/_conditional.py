@@ -6,7 +6,7 @@ import re
 from datetime import datetime
 
 from ._checks import optional_str, plain_bool, plain_str
-from ._dates import parse_http_date, to_utc
+from ._dates import read_http_date, to_utc
 from ._errors import MalformedDate, RangeError
 from ._numbers import OWS
 
@@ -27,11 +27,11 @@ def if_range_matches(
     strong comparison with ``etag``, the current ``ETag`` value: a weak tag on either
     side never matches. An HTTP-date matches only when it names the same second as
     ``last_modified`` (an aware ``datetime`` or an HTTP-date), and only if the date is a
-    strong validator (RFC 9110 8.8.2.2): pass ``date_is_strong=False`` when the
-    representation can change twice within one second. A malformed value never
-    matches. A wrong type or a naive ``datetime`` raises :class:`RangeError`, whichever
-    kind of validator ``if_range`` holds. When this returns False the server MUST
-    ignore ``Range`` and send 200.
+    strong validator (RFC 9110 8.8.2.2); a leap second (``:60``) matches only itself.
+    Pass ``date_is_strong=False`` when the representation can change twice within one
+    second. A malformed value never matches. A wrong type or a naive ``datetime``
+    raises :class:`RangeError`, whichever kind of validator ``if_range`` holds. When
+    this returns False the server MUST ignore ``Range`` and send 200.
 
     >>> if_range_matches('"v1"', etag='"v1"')
     True
@@ -51,24 +51,25 @@ def if_range_matches(
     if current is None or not strong:
         return False
     try:
-        return parse_http_date(text) == current
+        return read_http_date(text) == current
     except MalformedDate:
         return False
 
 
-def validator_date(value: object) -> datetime | None:
+def validator_date(value: object) -> tuple[datetime, bool] | None:
     """``last_modified`` as an aware UTC instant cut to the second, or ``None``.
 
+    The flag tells a leap second (``:60``, read as ``:59``) from the second before it.
     ``None`` and a string that is not an HTTP-date give ``None``; other types and naive
     datetimes raise :class:`RangeError`.
     """
     if value is None:
         return None
     if issubclass(type(value), datetime):
-        return to_utc(value, "last_modified").replace(microsecond=0)
+        return to_utc(value, "last_modified").replace(microsecond=0), False
     text = plain_str(value, RangeError, "last_modified")
     try:
-        return parse_http_date(text)
+        return read_http_date(text)
     except MalformedDate:
         return None
 

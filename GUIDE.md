@@ -90,7 +90,7 @@ Coalesced ranges keep the order of their earliest spec, so parts follow request 
 - `bytes=0-499`, `bytes=9500-`, `bytes=-500`, `bytes=0-0,-1`,
   `bytes= 0-999, 4500-5499, -1000` (the RFC's own example) are valid;
 - `bytes =0-1`, `bytes=0 - 1`, `bytes=500-100`, non-ASCII digits and numerals of more
-  than 4000 digits raise `MalformedRange`;
+  than 4000 significant digits (leading zeros are not counted) raise `MalformedRange`;
 - `items=1.2-4.3` parses to `RangeRequest(unit='items', specs=(), other=('1.2-4.3',))`.
 
 `parse_range`, from 0.1, stays lenient about spaces around `=` and only accepts `bytes`.

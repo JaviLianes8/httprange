@@ -1,7 +1,8 @@
 """The complete promise of every public name: signature, fields, members, errors, pickles.
 
 The parameter names, fields and defaults are those of 0.2.0, kept for 1.0.0; only the
-``data`` and ``body`` annotations of the multipart functions were widened.
+``data`` and ``body`` annotations of the multipart functions and the constructor
+parameters of four classes were widened.
 """
 
 from __future__ import annotations
@@ -126,9 +127,9 @@ def test_errors_keep_their_hierarchy_attributes_and_pickles() -> None:
         assert cls.__module__ == "httprange"
     unsatisfiable = pickle.loads(pickle.dumps(hr.UnsatisfiableRange("none fit", 7)))
     assert (str(unsatisfiable), unsatisfiable.length) == ("none fit", 7)
-    assert unsatisfiable.args == ("none fit", 7)
+    assert unsatisfiable.args == ("none fit",)  # repr never prints the length
     unsupported = pickle.loads(pickle.dumps(hr.UnsupportedRangeUnit("no", "items")))
-    assert (str(unsupported), unsupported.unit) == ("no", "items")
+    assert (str(unsupported), unsupported.unit, unsupported.args) == ("no", "items", ("no",))
     assert hr.UnsatisfiableRange("m").length is None and hr.UnsupportedRangeUnit("m").unit == ""
     empty = inspect.Parameter.empty
     for cls, extra in (

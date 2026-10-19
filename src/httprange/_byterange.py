@@ -91,5 +91,10 @@ class ByteRange:
             raise RangeError(f"other must be a ByteRange, got {type_name(other)}")
         return self.first <= other.last and other.first <= self.last
 
+    def __repr__(self) -> str:
+        return (
+            f"{type(self).__qualname__}(first={int_text(self.first)}, last={int_text(self.last)})"
+        )
+
     def __str__(self) -> str:
         return f"{int_text(self.first)}-{int_text(self.last)}"

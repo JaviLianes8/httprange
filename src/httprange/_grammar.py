@@ -17,7 +17,7 @@ MAX_EMPTY_ELEMENTS = 16
 _OTHER_CHARS = frozenset(chr(code) for code in range(0x21, 0x7F)) - {","}
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, init=False)
 class RangeRequest:
     """A parsed ``Range`` header: ``ranges-specifier = range-unit "=" range-set``.
 
@@ -37,6 +37,17 @@ class RangeRequest:
     unit: str
     specs: tuple[RangeSpec, ...] = ()
     other: tuple[str, ...] = ()
+
+    def __init__(
+        self,
+        unit: str,
+        specs: tuple[RangeSpec, ...] | list[RangeSpec] = (),
+        other: tuple[str, ...] | list[str] = (),
+    ) -> None:
+        object.__setattr__(self, "unit", unit)
+        object.__setattr__(self, "specs", specs)
+        object.__setattr__(self, "other", other)
+        self.__post_init__()
 
     def __post_init__(self) -> None:
         unit = plain_str(self.unit, MalformedRange, "unit")
@@ -67,6 +78,10 @@ class RangeRequest:
         False
         """
         return self.unit == UNIT
+
+    def __repr__(self) -> str:
+        fields = f"unit={self.unit!r}, specs={self.specs!r}, other={self.other!r}"
+        return f"{type(self).__qualname__}({fields})"
 
     def __str__(self) -> str:
         """The canonical header value, for example ``'bytes=0-499,-500'``."""

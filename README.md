@@ -30,7 +30,7 @@ decision = evaluate_range_request(
     etag='"v1"',  # current validators of the representation
 )
 decision.status  # 200, 206 or 416
-decision.content_range  # None here (multipart); 'bytes 0-0/10000' or 'bytes */10000' otherwise
+decision.content_range  # None for a 200 or, as here, a multipart 206; else 'bytes 0-0/10000' or 'bytes */10000'
 if decision.is_multipart:
     body = build_multipart_byteranges(data, decision.ranges, content_type="video/mp4")
     body.content_type  # 'multipart/byteranges; boundary=...'

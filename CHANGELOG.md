@@ -32,7 +32,10 @@ Every change below was checked against the 0.2.0 release from PyPI.
 - Every public name has a runnable example in its docstring.
 - `python -m httprange` runs the command line tool.
 - `build_multipart_byteranges` and `parse_multipart_byteranges` are annotated to take
-  `bytes`, `bytearray` or `memoryview`, which they already accepted.
+  `bytes`, `bytearray` or `memoryview`, which they already accepted. So are the `data`
+  of `BytePart` and the `body` of `MultipartBody`; the `ranges` of `RangeDecision` and
+  the `specs` and `other` of `RangeRequest` are annotated to take a list as well as a
+  tuple. The fields keep their types: the values are stored as `bytes` and tuples.
 
 ### Changed
 
@@ -44,22 +47,25 @@ Every change below was checked against the 0.2.0 release from PyPI.
   `TypeError`).
 - `evaluate_range_request` and `if_range_matches` raise `RangeError` for a naive
   `last_modified` datetime whatever the `If-Range` holds (0.2.0 checked it only when
-  `If-Range` was a date), and the decision's reason quotes the method with `repr`.
+  `If-Range` was a date), and the decision's reason quotes a method that is not a token
+  with `repr` (a token such as `HEAD` is shown as is).
 - `ContentRange` stores its unit in lower case, so `ContentRange("BYTES", 0, 1, 2)`
   equals the parsed `bytes 0-1/2`.
 - `RangeRequest` refuses a request with neither specs nor other-range items
   (`MalformedRange`); `RangeDecision` refuses fields that no decision can hold
   (`RangeError`); `BytePart` refuses data whose length differs from its `bytes`
   Content-Range (`MalformedMultipart`).
-- Positions and lengths are limited to 4000 decimal digits, and `ByteRange` refuses
+- Positions and lengths are limited to 4000 significant decimal digits (leading zeros
+  are not counted), and `ByteRange` refuses
   wider ones with `RangeError`; results no longer depend on the interpreter's integer
   string conversion limit. `ByteRange.content_range` refuses a non-integer length.
 - `resolve_ranges` raises `MalformedRange` for an empty sequence of specs (it raised
   `UnsatisfiableRange`).
 - `evaluate_range_request` counts specs before it checks their syntax: more than
   `max_ranges` specs give 416 even when a later one is invalid (0.2.0 answered 200).
-  A request with an unknown unit and a long list, or with more than `max_empty` empty
-  list elements, is ignored with 200 (0.2.0 answered 416).
+  0.2.0 answered 416 for any header holding at least `max_ranges` + 16 commas, before
+  it looked at the unit or the list: such a header in a unit other than `bytes`, or one
+  that also has more than `max_empty` empty list elements, is now ignored with 200.
 - `build_multipart_byteranges` refuses a `content_type` with leading or trailing
   whitespace, and reads a `memoryview` of any item size as its bytes (0.2.0 refused
   item sizes above one). `encode_multipart_byteranges` refuses parts that disagree on
@@ -74,11 +80,28 @@ Every change below was checked against the 0.2.0 release from PyPI.
   year 9999.
 - `format_http_date` raises `RangeError` for an instant before year 1 in UTC (it leaked
   `OverflowError`).
+- `if_range_matches` and `evaluate_range_request` match a leap second (`:60`) only with
+  itself: 0.2.0 read it as `:59` and served the range for a validator of that second.
+- A `datetime` (`when`, `now`, `last_modified`) is read through the `datetime` class, so
+  a subclass's own `astimezone`, `utcoffset` or `weekday` no longer changes a result,
+  and a `tzinfo` that returns an invalid offset raises `RangeError` (it leaked
+  `ValueError` or `TypeError`). Likewise `resolve_ranges`, `build_multipart_byteranges`,
+  `encode_multipart_byteranges`, `BytePart` and `RangeDecision` read subclasses of
+  `RangeSpec`, `ByteRange`, `ContentRange`, `BytePart` and `RangePolicy` by their fields
+  only: `RangeDecision.ranges` and `BytePart.content_range` hold plain instances.
+- `UnsatisfiableRange.args` and `UnsupportedRangeUnit.args` hold the message only (0.2.0
+  added the length or the unit, so `repr` of the error could echo a huge unit); the
+  `length` and `unit` attributes are unchanged.
+- `repr` of `RangeSpec`, `ByteRange`, `ContentRange`, `RangeRequest`, `RangeDecision` and
+  `RangePolicy`, and `str` of `RangeDecision`, work under any
+  `sys.set_int_max_str_digits` limit.
 - Error messages quote at most 40 characters of any input; the command line tool cuts
   its messages to 200 characters, takes lengths of up to 4000 digits and exits with 1
-  when the reader of its output goes away.
-- The public classes report `httprange` as their module, so their pickles do not depend
-  on private module names. The package no longer exposes the `annotations` name that
+  when the reader of its output goes away, `--help` and `--version` included (they
+  exited with 120).
+- The public classes and functions report `httprange` as their module, so their pickles
+  do not depend on private module names and `doctest.testmod(httprange)` runs every
+  example. The package no longer exposes the `annotations` name that
   `from __future__ import annotations` left in 0.2.0.
 - `Development Status :: 5 - Production/Stable`.
 

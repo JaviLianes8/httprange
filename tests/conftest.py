@@ -17,6 +17,16 @@ from range_server import CONTENT, serve
 UPSTREAM = Path(__file__).resolve().parent / "upstream"
 
 
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo[None]) -> Iterator[None]:
+    """With ``HTTPRANGE_FULL=1`` (``scripts/check.ps1 -Full``) a skipped test fails."""
+    outcome = yield
+    report = outcome.get_result()  # type: ignore[attr-defined]
+    if os.environ.get("HTTPRANGE_FULL") == "1" and report.skipped:
+        report.outcome = "failed"
+        report.longrepr = f"skipped in a full run: {report.longrepr}"
+
+
 @pytest.fixture(scope="session")
 def old() -> ModuleType:
     """The PyPI 0.2.0 release, loaded as ``httprange_v02`` from ``HTTPRANGE_V02``.

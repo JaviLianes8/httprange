@@ -87,7 +87,7 @@ def test_subclasses_cannot_steer_a_result() -> None:
     with pytest.raises(hr.MalformedMultipart, match="boundary occurs"):
         hr.build_multipart_byteranges(LyingBytes(b"ab--b"), [hr.ByteRange(0, 4)], boundary="b")
     lying = LyingList([hr.RangeSpec(0, 0)])
-    assert hr.RangeRequest("bytes", lying).specs == (hr.RangeSpec(0, 0),)  # type: ignore[arg-type]
+    assert hr.RangeRequest("bytes", lying).specs == (hr.RangeSpec(0, 0),)
     part = hr.BytePart(hr.ContentRange("bytes", 0, 1, 2), LyingBytes(b"ab"))
     assert type(part.data) is bytes and part.data == b"ab"
 
