@@ -1,6 +1,6 @@
 """Pins for input edges: overlaps on a shared edge byte in either order, short messages
-for a huge malformed last_modified, text refused as a list of ranges or parts, objects
-iterable only by index, and the decide --etag option. Each runs in the default gate."""
+for a huge malformed last_modified, text and bytes refused as a list of ranges or parts,
+objects iterable only by index, and the decide --etag option. Each runs in the default gate."""
 
 from __future__ import annotations
 
@@ -25,6 +25,33 @@ class _ByIndex:
         if index < 2:
             return hr.RangeSpec(index, index)
         raise IndexError(index)
+
+
+class _OneByIndex:
+    """Holds one item reachable only through ``__getitem__``."""
+
+    def __init__(self, item: object) -> None:
+        self.item = item
+
+    def __getitem__(self, index: int) -> object:
+        if index == 0:
+            return self.item
+        raise IndexError(index)
+
+
+NOT_A_LIST = [
+    "",
+    "ab",
+    _Text(""),
+    _Text("x"),
+    b"",
+    b"ab",
+    bytearray(),
+    bytearray(b"a"),
+    memoryview(b""),
+    memoryview(b"x"),
+]
+BYTES_LIKE = [b"", b"ab", bytearray(), bytearray(b"a"), memoryview(b""), memoryview(b"a")]
 
 
 @pytest.mark.parametrize(
@@ -66,8 +93,8 @@ def test_a_huge_malformed_last_modified_gives_a_short_message(call: Callable[[],
     assert len(message) <= 120
 
 
-@pytest.mark.parametrize("text", ["", "ab", _Text(""), _Text("x")])
-def test_text_is_refused_as_the_ranges_of_build_multipart(text: str) -> None:
+@pytest.mark.parametrize("text", NOT_A_LIST)
+def test_text_is_refused_as_the_ranges_of_build_multipart(text: object) -> None:
     with pytest.raises(hr.RangeError) as caught:
         hr.build_multipart_byteranges(b"abc", text)  # type: ignore[arg-type]
     assert type(caught.value) is hr.RangeError
@@ -75,12 +102,33 @@ def test_text_is_refused_as_the_ranges_of_build_multipart(text: str) -> None:
     assert str(caught.value) == f"ranges must be an iterable of ByteRange, got {name}"
 
 
-@pytest.mark.parametrize("text", ["", "ab", _Text(""), _Text("x")])
-def test_text_is_refused_as_the_parts_of_encode_multipart(text: str) -> None:
+@pytest.mark.parametrize("text", NOT_A_LIST)
+def test_text_is_refused_as_the_parts_of_encode_multipart(text: object) -> None:
     with pytest.raises(hr.MalformedMultipart) as caught:
         hr.encode_multipart_byteranges(text)  # type: ignore[arg-type]
     name = type(text).__name__
     assert str(caught.value) == f"parts must be an iterable of BytePart, got {name}"
+
+
+@pytest.mark.parametrize("data", BYTES_LIKE)
+def test_resolve_ranges_refuses_bytes_as_the_ranges(data: object) -> None:
+    with pytest.raises(hr.MalformedRange) as caught:
+        hr.resolve_ranges(data, 10)  # type: ignore[arg-type]
+    name = type(data).__name__
+    assert str(caught.value) == f"ranges must be a str or RangeSpec items, got {name}"
+
+
+def test_multipart_builders_refuse_an_object_iterable_only_by_index() -> None:
+    ranges = _OneByIndex(hr.ByteRange(0, 1))
+    with pytest.raises(hr.RangeError) as caught:
+        hr.build_multipart_byteranges(b"abc", ranges)  # type: ignore[arg-type]
+    assert type(caught.value) is hr.RangeError
+    assert str(caught.value) == "ranges must be an iterable of ByteRange, got _OneByIndex"
+    part = hr.BytePart(hr.ContentRange("bytes", 0, 1, 3), b"ab")
+    with pytest.raises(hr.MalformedMultipart) as refused:
+        hr.encode_multipart_byteranges(_OneByIndex(part))  # type: ignore[arg-type]
+    assert str(refused.value) == "parts must be an iterable of BytePart, got _OneByIndex"
+    assert hr.encode_multipart_byteranges([part], boundary="b").boundary == "b"
 
 
 def test_resolve_ranges_refuses_an_object_iterable_only_by_index() -> None:
