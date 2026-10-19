@@ -13,6 +13,8 @@ from pathlib import Path
 
 import pytest
 
+import httprange as hr
+from httprange import _cli as cli
 from httprange._cli import main
 
 SRC = Path(__file__).resolve().parent.parent / "src"
@@ -73,6 +75,18 @@ def test_error_messages_are_cut_to_200_characters(capsys: pytest.CaptureFixture[
     assert info.value.code == 1
     usage, error = capsys.readouterr().err.rstrip("\n").split("\n")[-2:]
     assert len(error.removeprefix("httprange: error: ")) <= 203, usage
+
+
+def test_a_long_library_error_is_cut_too(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fail(args: object) -> str:
+        raise hr.RangeError("y" * 1000)
+
+    monkeypatch.setattr(cli, "_run", fail)
+    code, out, err = run(capsys, "parse", "bytes=0-1")
+    assert (code, out) == (1, "")
+    assert err == "httprange: error: " + "y" * 200 + "...\n"
 
 
 def _closed_reader(*args: str) -> tuple[int, bytes]:
