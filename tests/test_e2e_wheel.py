@@ -96,7 +96,8 @@ def test_wheel_and_sdist_contents(dist: Path) -> None:
     assert "httprange/py.typed" in names and "httprange/__main__.py" in names
     assert any(name.endswith("licenses/LICENSE") for name in names)
     assert all(name.startswith(("httprange/", "httprange-1.0.0.dist-info/")) for name in names)
-    assert not any(name.endswith((".pyc", ".json", ".js", ".md", ".txt")) for name in names)
+    package = [name for name in names if name.startswith("httprange/")]
+    assert all(name.endswith((".py", "py.typed")) for name in package), package
     listing = _run(sys.executable, "-m", "tarfile", "-l", sdist).stdout
     for absent in ("IMPROVEMENTS-round", "CERT-1.0-", "rfc", ".tgz", ".html", "__pycache__"):
         assert absent not in listing, absent
